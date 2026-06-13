@@ -174,6 +174,7 @@ async function load() {
     render();
     refreshTools();
     renderLeaders();
+    renderPlayerGrid("");
   } catch (err) {
     rawPlayers = [];
     renderEmpty(API
@@ -366,6 +367,9 @@ function initTools() {
     const cmpBtn = e.target.closest(".cmp-btn[data-id]");
     if (cmpBtn) toggleCompare(cmpBtn.dataset.id);
   });
+  // Phase 4: players section search
+  const psearch = document.getElementById("player-search");
+  if (psearch) psearch.addEventListener("input", () => renderPlayerGrid(psearch.value.trim()));
 }
 function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); }
 
@@ -612,6 +616,8 @@ const RAW_MAP = { pts:"pts", reb:"reb", ast:"ast", stl:"stl", blk:"blk", tpm:"tp
 const RAW_FMT = (k, v) => v == null ? "—" : (k === "fg" || k === "ft") ? (v * 100).toFixed(1) + "%" : (+v).toFixed(1);
 
 /* ---- player detail modal ---- */
+let currentModalPlayer = null;
+
 function initModal() {
   const overlay = document.getElementById("modal-overlay");
   if (!overlay) return;
@@ -620,13 +626,26 @@ function initModal() {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 }
 function openModal(p) {
+  currentModalPlayer = p;
   const overlay = document.getElementById("modal-overlay");
   const content = document.getElementById("modal-content");
   if (!overlay || !content) return;
   content.innerHTML = buildModalHTML(p);
+  // Tab switching
+  content.querySelector("#modal-tabs")?.addEventListener("click", (e) => {
+    const tab = e.target.closest(".modal-tab[data-tab]");
+    if (!tab) return;
+    content.querySelectorAll(".modal-tab").forEach((t) => t.classList.toggle("active", t === tab));
+    const tabBody = document.getElementById("modal-tab-body");
+    if (tab.dataset.tab === "stats") {
+      tabBody.innerHTML = buildStatsTabHTML(currentModalPlayer);
+    } else {
+      loadAndShowCareer(currentModalPlayer, tabBody);
+    }
+  });
+  // Compare button
   content.querySelector(".modal-cmp-btn")?.addEventListener("click", () => {
     toggleCompare(p.id);
-    // refresh button label without closing
     const btn = content.querySelector(".modal-cmp-btn");
     if (btn) {
       const inCmp = compareList.includes(p.id);
@@ -657,6 +676,17 @@ function buildModalHTML(p) {
         <span class="tier-badge ${tier.cls}">${tier.label}</span>
       </div>
     </div>
+    <div class="modal-tabs" id="modal-tabs">
+      <button class="modal-tab active" data-tab="stats">Fantasy Stats</button>
+      <button class="modal-tab" data-tab="career">Career</button>
+    </div>
+    <div id="modal-tab-body">${buildStatsTabHTML(p)}</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost modal-cmp-btn${inCmp ? " in-cmp" : ""}">${inCmp ? "✓ In comparison" : "⊕ Add to compare"}</button>
+    </div>`;
+}
+function buildStatsTabHTML(p) {
+  return `
     <div class="modal-body">
       <div class="modal-radar">${radarSVG([p], 230)}</div>
       <div class="modal-cats">
@@ -680,9 +710,6 @@ function buildModalHTML(p) {
         const raw = p.stats?.[RAW_MAP[c.k]];
         return `<div class="mraw-cell"><span>${c.l}</span><b>${RAW_FMT(c.k, raw)}</b></div>`;
       }).join("")}
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost modal-cmp-btn${inCmp ? " in-cmp" : ""}">${inCmp ? "✓ In comparison" : "⊕ Add to compare"}</button>
     </div>`;
 }
 
@@ -795,4 +822,179 @@ function openCompareModal() {
   overlay.classList.add("open");
   overlay.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+}
+
+/* ============================ PHASE 4 PLAYER PROFILES ============================ */
+
+/* ---- career data loading ---- */
+const careerCache = {};
+let careerSnapshot = null;
+
+async function loadCareerSnapshot() {
+  if (careerSnapshot !== null) return;
+  try {
+    const r = await fetch("data/career-2025-26.json");
+    if (r.ok) { const j = await r.json(); careerSnapshot = j.players || {}; }
+    else careerSnapshot = {};
+  } catch { careerSnapshot = {}; }
+}
+
+async function loadCareerData(playerId) {
+  if (careerCache[playerId]) return careerCache[playerId];
+  if (API) {
+    try {
+      const r = await fetch(`${API}/api/players/${playerId}/career`,
+        { signal: AbortSignal.timeout(12000) });
+      if (r.ok) { careerCache[playerId] = await r.json(); return careerCache[playerId]; }
+    } catch {}
+  }
+  if (careerSnapshot === null) await loadCareerSnapshot();
+  const data = (careerSnapshot || {})[playerId] || [];
+  careerCache[playerId] = data;
+  return data;
+}
+
+async function loadAndShowCareer(p, tabBody) {
+  tabBody.innerHTML = '<div class="career-loading">Loading career stats…</div>';
+  const career = await loadCareerData(p.id);
+  if (!career.length) {
+    tabBody.innerHTML = `<div class="career-empty">Career stats not available yet.<br><small>Run <code>python scripts/gen_career.py</code> locally to generate them.</small></div>`;
+    return;
+  }
+  tabBody.innerHTML =
+    `<div class="career-spark">${careerSparkline(career)}</div>` +
+    `<div class="career-table-wrap">${buildCareerTable(career)}</div>`;
+}
+
+/* ---- career sparkline SVG ---- */
+function careerSparkline(seasons) {
+  if (seasons.length < 2) return "";
+  const W = 560, H = 130;
+  const metrics = [
+    { key: "pts", label: "PTS", color: "#ee6730" },
+    { key: "reb", label: "REB", color: "#3a6df0" },
+    { key: "ast", label: "AST", color: "#ffc24b" },
+  ];
+  const maxVal = Math.max(...metrics.flatMap((m) => seasons.map((s) => s[m.key] ?? 0)), 5);
+  const pad = { t: 16, r: 12, b: 28, l: 8 };
+  const w = W - pad.l - pad.r, h = H - pad.t - pad.b;
+  const x = (i) => pad.l + (seasons.length > 1 ? (i / (seasons.length - 1)) * w : w / 2);
+  const y = (v) => pad.t + h - ((v ?? 0) / maxVal) * h;
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="max-width:${W}px;display:block">`;
+  for (const pct of [0.25, 0.5, 0.75, 1]) {
+    const yy = pad.t + h - pct * h;
+    svg += `<line x1="${pad.l}" y1="${yy.toFixed(1)}" x2="${pad.l + w}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`;
+  }
+  metrics.forEach(({ label, color }, i) => {
+    const lx = 12 + i * 55;
+    svg += `<line x1="${lx}" y1="8" x2="${lx + 14}" y2="8" stroke="${color}" stroke-width="2"/>`;
+    svg += `<text x="${lx + 18}" y="11" fill="rgba(255,255,255,0.55)" font-size="9" font-family="Inter,sans-serif">${label}</text>`;
+  });
+  metrics.forEach(({ key, color }) => {
+    const path = seasons
+      .map((s, i) => s[key] != null ? `${i ? "L" : "M"}${x(i).toFixed(1)},${y(s[key]).toFixed(1)}` : null)
+      .filter(Boolean).join("");
+    if (!path) return;
+    svg += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
+    const last = seasons[seasons.length - 1];
+    if (last[key] != null)
+      svg += `<circle cx="${x(seasons.length - 1).toFixed(1)}" cy="${y(last[key]).toFixed(1)}" r="3" fill="${color}"/>`;
+  });
+  seasons.forEach((s, i) => {
+    if (seasons.length <= 7 || i % 2 === 0 || i === seasons.length - 1) {
+      svg += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="8" font-family="Inter,sans-serif">${(s.season || "").slice(2)}</text>`;
+    }
+  });
+  return svg + "</svg>";
+}
+
+/* ---- career table ---- */
+function buildCareerTable(seasons) {
+  const cols = [
+    { h:"Season", k:"season",  fmt:(v)=>v??"—",                              lft:true },
+    { h:"Age",    k:"age",     fmt:(v)=>v??"—" },
+    { h:"Team",   k:"team",    fmt:(v)=>v??"—",                              lft:true },
+    { h:"GP",     k:"gp",      fmt:(v)=>v??"—" },
+    { h:"MIN",    k:"min",     fmt:(v)=>v!=null?(+v).toFixed(1):"—" },
+    { h:"PTS",    k:"pts",     fmt:(v)=>v!=null?(+v).toFixed(1):"—",         hi:true },
+    { h:"REB",    k:"reb",     fmt:(v)=>v!=null?(+v).toFixed(1):"—",         hi:true },
+    { h:"AST",    k:"ast",     fmt:(v)=>v!=null?(+v).toFixed(1):"—",         hi:true },
+    { h:"STL",    k:"stl",     fmt:(v)=>v!=null?(+v).toFixed(1):"—",         hi:true },
+    { h:"BLK",    k:"blk",     fmt:(v)=>v!=null?(+v).toFixed(1):"—",         hi:true },
+    { h:"3PM",    k:"tpm",     fmt:(v)=>v!=null?(+v).toFixed(1):"—",         hi:true },
+    { h:"FG%",    k:"fg_pct",  fmt:(v)=>v!=null?(v*100).toFixed(1)+"%":"—" },
+    { h:"FT%",    k:"ft_pct",  fmt:(v)=>v!=null?(v*100).toFixed(1)+"%":"—" },
+    { h:"TOV",    k:"tov",     fmt:(v)=>v!=null?(+v).toFixed(1):"—" },
+  ];
+  const highs = {};
+  for (const c of cols.filter((c) => c.hi))
+    highs[c.k] = Math.max(...seasons.map((s) => s[c.k] ?? 0));
+  const curSeasons = new Set(["2024-25", "2025-26"]);
+  const headers = cols.map((c) => `<th${c.lft?' class="cat-lbl"':""}>${c.h}</th>`).join("");
+  const rows = seasons.map((s) => {
+    const cur = curSeasons.has(s.season);
+    const cells = cols.map((c) => {
+      const v = s[c.k];
+      const isHigh = c.hi && highs[c.k] && v != null && +v === highs[c.k] && highs[c.k] > 0;
+      return `<td${c.lft?' class="cat-lbl"':isHigh?' class="career-high"':""}>${c.fmt(v)}</td>`;
+    }).join("");
+    return `<tr${cur?' class="current-season"':""}>${cells}</tr>`;
+  }).join("");
+  return `<table class="career-tbl"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- players browse section ---- */
+const AVATAR_COLORS = ["#ee6730","#3a6df0","#44d07b","#8b5cf6","#06b6d4","#f59e0b"];
+function playerInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2 ? (parts[0][0]+parts[parts.length-1][0]).toUpperCase() : name.slice(0,2).toUpperCase();
+}
+function avatarColor(name) {
+  let h = 0; for (const c of name) h = (h*31 + c.charCodeAt(0)) & 0xfffff;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+const PLAYERS_PAGE_SIZE = 24;
+let playersShown = PLAYERS_PAGE_SIZE;
+
+function renderPlayerGrid(query) {
+  const grid = document.getElementById("player-grid");
+  if (!grid || !rawPlayers.length) return;
+  const q = query.toLowerCase();
+  const filtered = q
+    ? rawPlayers.filter((p) => p.name.toLowerCase().includes(q) || (p.team||"").toLowerCase().includes(q))
+    : rawPlayers;
+  const shown = filtered.slice(0, playersShown);
+  const cards = shown.map((p) => {
+    const ini = playerInitials(p.name);
+    const col = avatarColor(p.name);
+    const pts = p.stats?.pts != null ? (+p.stats.pts).toFixed(1) : "—";
+    const reb = p.stats?.reb != null ? (+p.stats.reb).toFixed(1) : "—";
+    const ast = p.stats?.ast != null ? (+p.stats.ast).toFixed(1) : "—";
+    return `<div class="player-card" data-id="${esc(p.id)}">
+      <div class="pc-top">
+        <div class="pc-avatar" style="background:${col}">${ini}</div>
+        <div class="pc-info">
+          <div class="pc-name">${esc(p.name)}</div>
+          <div class="pc-meta">${esc(p.team||"—")} · ${esc(p.pos||"—")}</div>
+        </div>
+      </div>
+      <div class="pc-stats">
+        <div class="pc-stat"><b>${pts}</b><span>PTS</span></div>
+        <div class="pc-stat"><b>${reb}</b><span>REB</span></div>
+        <div class="pc-stat"><b>${ast}</b><span>AST</span></div>
+      </div>
+      <div class="pc-rank">Fantasy rank <b>#${p.rank}</b> · <b>${p.total>=0?"+":""}${p.total.toFixed(1)}</b> z</div>
+    </div>`;
+  }).join("");
+  const more = filtered.length > shown.length
+    ? `<div class="players-more"><button class="btn btn-ghost" id="players-load-more">Show more (${filtered.length-shown.length} remaining)</button></div>`
+    : "";
+  grid.innerHTML = cards + more;
+  grid.querySelectorAll(".player-card[data-id]").forEach((el) =>
+    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+  grid.querySelector("#players-load-more")?.addEventListener("click", () => {
+    playersShown += PLAYERS_PAGE_SIZE;
+    renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
+  });
 }

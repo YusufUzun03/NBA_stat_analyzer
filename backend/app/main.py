@@ -56,6 +56,12 @@ def get_player(
     return detail
 
 
+@app.get("/api/players/{player_id}/career")
+def get_career(player_id: str):
+    from .data.nba_client import get_career_stats
+    return get_career_stats(player_id)
+
+
 @app.get("/api/players/{player_id}/best-punts")
 def get_best_punts(
     player_id: str,

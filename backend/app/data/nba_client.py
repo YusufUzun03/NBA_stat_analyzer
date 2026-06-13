@@ -201,6 +201,76 @@ def _fetch_schedule(season: str) -> list[dict]:
     return games
 
 
+# --- career per-game stats (individual player page) -----------------------
+
+def _parse_player_career(html: str) -> list[dict]:
+    """Parse per-season per-game stats from a basketball-reference player page."""
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("table", id="per_game")
+    if table is None:
+        return []
+
+    seasons: dict[str, dict] = {}
+    body = table.find("tbody")
+    if not body:
+        return []
+
+    for tr in body.find_all("tr"):
+        if "thead" in (tr.get("class") or []) or "partial_table" in (tr.get("class") or []):
+            continue
+
+        def cell_txt(stat: str) -> str:
+            td = tr.find(attrs={"data-stat": stat})
+            return td.get_text(strip=True) if td else ""
+
+        def flt(stat: str) -> float | None:
+            v = cell_txt(stat)
+            if not v:
+                return None
+            try:
+                return float(v)
+            except ValueError:
+                return None
+
+        season = cell_txt("season")
+        if not season or "Career" in season:
+            continue
+
+        # Keep first row per season — BR lists the multi-team aggregate before
+        # the per-team splits, so the first row is always the season total.
+        if season in seasons:
+            continue
+
+        seasons[season] = {
+            "season": season,
+            "age":    flt("age"),
+            "team":   cell_txt("team_id"),
+            "gp":     flt("g"),
+            "min":    flt("mp_per_g"),
+            "pts":    flt("pts_per_g"),
+            "reb":    flt("trb_per_g"),
+            "ast":    flt("ast_per_g"),
+            "stl":    flt("stl_per_g"),
+            "blk":    flt("blk_per_g"),
+            "tpm":    flt("fg3_per_g"),
+            "fg_pct": flt("fg_pct"),
+            "ft_pct": flt("ft_pct"),
+            "tov":    flt("tov_per_g"),
+        }
+
+    return sorted(seasons.values(), key=lambda r: r["season"])
+
+
+def _fetch_career_stats(player_id: str) -> list[dict]:
+    first_letter = player_id[0]
+    url = f"{BREF_BASE}/players/{first_letter}/{player_id}.html"
+    try:
+        html = _get_html(url)
+        return _parse_player_career(html)
+    except Exception:
+        return []
+
+
 # --- public API -----------------------------------------------------------
 
 def get_player_stats(season: str = DEFAULT_SEASON) -> list[dict]:
@@ -209,3 +279,9 @@ def get_player_stats(season: str = DEFAULT_SEASON) -> list[dict]:
 
 def get_schedule(season: str = DEFAULT_SEASON) -> list[dict]:
     return cached(f"schedule_{season}", lambda: _fetch_schedule(season), ttl=CACHE_TTL_SECONDS)
+
+
+def get_career_stats(player_id: str) -> list[dict]:
+    """Per-season career per-game stats (cached 7 days — historical data rarely changes)."""
+    ttl = 7 * 24 * 3600
+    return cached(f"career_{player_id}", lambda: _fetch_career_stats(player_id), ttl=ttl)

@@ -15,6 +15,10 @@ cache/*
 .env
 *.local
 
+# Script logs
+backend/*.log
+backend/scripts/*.log
+
 # OS / editor
 .DS_Store
 Thumbs.db
