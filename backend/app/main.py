@@ -56,6 +56,17 @@ def get_player(
     return detail
 
 
+@app.get("/api/players/{player_id}/best-punts")
+def get_best_punts(
+    player_id: str,
+    pool: int = Query(DEFAULT_POOL, ge=20, le=500),
+    season: str = Query(DEFAULT_SEASON),
+    top: int = Query(4, ge=1, le=9),
+):
+    from .engine.punt import best_punts_for_player
+    return best_punts_for_player(service.load_players(season), player_id, pool=pool, top=top)
+
+
 @app.post("/api/trade")
 def post_trade(req: TradeRequest, season: str = Query(DEFAULT_SEASON)):
     if not req.give and not req.receive:

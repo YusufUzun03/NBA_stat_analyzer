@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initReveals();
   initCounters();
   initControls();
+  initTools();
   load();
 });
 
@@ -129,6 +130,7 @@ function initControls() {
       state.punts.has(k) ? state.punts.delete(k) : state.punts.add(k);
       b.classList.toggle("active");
       render();
+      refreshTools();
     });
     puntWrap.appendChild(b);
   });
@@ -169,6 +171,7 @@ async function load() {
     rawPlayers = await fetchPlayers();
     populateTeams();
     render();
+    refreshTools();
   } catch (err) {
     rawPlayers = [];
     renderEmpty(API
@@ -337,3 +340,194 @@ function exportCsv() {
   URL.revokeObjectURL(a.href);
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ============================ PHASE 2 TOOLS ============================ */
+const getPlayer = (id) => rawPlayers.find((p) => p.id === id);
+
+function initTools() {
+  attachAC(document.querySelector('.ac[data-ac="give"]'), (p) => addTrade("give", p.id));
+  attachAC(document.querySelector('.ac[data-ac="get"]'), (p) => addTrade("get", p.id));
+  attachAC(document.querySelector('.ac[data-ac="punt"]'), (p) => { puntFitId = p.id; renderPuntFit(); });
+  initSchedule();
+}
+function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); }
+
+/* ---- reusable autocomplete ---- */
+function attachAC(acEl, onPick) {
+  if (!acEl) return;
+  const input = acEl.querySelector("input");
+  const menu = acEl.querySelector(".ac-menu");
+  const close = () => { menu.classList.remove("open"); menu.innerHTML = ""; };
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) return close();
+    const hits = rawPlayers.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8);
+    if (!hits.length) return close();
+    menu.innerHTML = hits.map((p) =>
+      `<div class="ac-item" data-id="${esc(p.id)}"><span>${esc(p.name)}</span><span class="meta">${esc(p.team || "")} ${esc(p.pos || "")}</span></div>`).join("");
+    menu.classList.add("open");
+    menu.querySelectorAll(".ac-item").forEach((it) =>
+      it.addEventListener("mousedown", (e) => { e.preventDefault(); const p = getPlayer(it.dataset.id); if (p) onPick(p); input.value = ""; close(); }));
+  });
+  input.addEventListener("blur", () => setTimeout(close, 150));
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") { const f = menu.querySelector(".ac-item"); if (f) f.dispatchEvent(new MouseEvent("mousedown")); } });
+}
+
+/* ---- trade analyzer ---- */
+const tradeSel = { give: [], get: [] };
+function addTrade(side, id) {
+  if (tradeSel.give.includes(id) || tradeSel.get.includes(id)) return;
+  tradeSel[side].push(id); renderTradeLists(); renderTrade();
+}
+function removeTrade(side, id) {
+  tradeSel[side] = tradeSel[side].filter((x) => x !== id); renderTradeLists(); renderTrade();
+}
+function renderTradeLists() {
+  for (const side of ["give", "get"]) {
+    const el = document.getElementById(side + "-list");
+    if (!el) continue;
+    el.innerHTML = tradeSel[side].map((id) => {
+      const p = getPlayer(id);
+      if (!p) return "";
+      return `<div class="tl-item"><span>${esc(p.name)}</span><span><span class="tot">${puntedTotal(p).toFixed(1)}</span> <button data-side="${side}" data-id="${esc(id)}">×</button></span></div>`;
+    }).join("");
+    el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => removeTrade(b.dataset.side, b.dataset.id)));
+  }
+}
+function sideSums(ids) {
+  const sums = {}; CAT_KEYS.forEach((k) => (sums[k] = 0));
+  ids.forEach((id) => { const p = getPlayer(id); if (p) CAT_KEYS.forEach((k) => { if (!state.punts.has(k)) sums[k] += p.z?.[k] ?? 0; }); });
+  let total = 0; CAT_KEYS.forEach((k) => { if (!state.punts.has(k)) total += sums[k]; });
+  return { sums, total };
+}
+function gradeTrade(net) {
+  const table = [[4, "A+", "Huge win for the receiving side."], [2.5, "A", "Clear win for the receiving side."],
+    [1.2, "B+", "Solid win for the receiving side."], [0.4, "B", "Slight win for the receiving side."],
+    [-0.4, "C", "Fair / even trade."], [-1.2, "C-", "Slight loss for the receiving side."],
+    [-2.5, "D", "Clear loss for the receiving side."]];
+  for (const [th, g, v] of table) if (net >= th) return { grade: g, verdict: v };
+  return { grade: "F", verdict: "Big loss for the receiving side." };
+}
+function renderTrade() {
+  const box = document.getElementById("trade-result");
+  if (!box) return;
+  if (!tradeSel.give.length || !tradeSel.get.length) {
+    box.innerHTML = '<div class="trade-empty">Add players to both sides to grade the deal.</div>'; return;
+  }
+  const g = sideSums(tradeSel.give), r = sideSums(tradeSel.get);
+  const net = r.total - g.total;
+  const { grade, verdict } = gradeTrade(net);
+  const cats = CATS.filter((c) => !state.punts.has(c.k));
+  const deltas = cats.map((c) => ({ l: c.l, d: r.sums[c.k] - g.sums[c.k] }));
+  const maxAbs = Math.max(0.5, ...deltas.map((x) => Math.abs(x.d)));
+  const color = net >= 0.4 ? "var(--good)" : net <= -0.4 ? "var(--bad)" : "var(--gold)";
+  box.innerHTML =
+    `<div class="tr-grade"><div class="g" style="color:${color}">${grade}</div><div class="v">${verdict}</div></div>` +
+    `<div class="tr-net">Net value <b style="color:${color}">${net >= 0 ? "+" : ""}${net.toFixed(2)}</b> for the receiving side</div>` +
+    deltas.map((x) => {
+      const w = (Math.min(Math.abs(x.d) / maxAbs, 1) * 50).toFixed(1);
+      const pos = x.d >= 0;
+      const style = pos ? `left:50%;width:${w}%;background:var(--good)` : `right:50%;left:auto;width:${w}%;background:var(--bad)`;
+      return `<div class="tr-row"><span class="lbl">${x.l}</span><span class="tr-bar"><i style="${style}"></i></span><span class="d ${pos ? "pos-good" : "pos-bad"}">${pos ? "+" : ""}${x.d.toFixed(2)}</span></div>`;
+    }).join("");
+}
+
+/* ---- punt fit finder ---- */
+let puntFitId = null;
+function rankForPlayer(puntSet, id) {
+  const arr = rawPlayers.map((p) => {
+    let t = 0; for (const k of CAT_KEYS) if (!puntSet.has(k)) t += p.z?.[k] ?? 0;
+    return { id: p.id, t };
+  });
+  arr.sort((a, b) => b.t - a.t);
+  const idx = arr.findIndex((x) => x.id === id);
+  return idx < 0 ? null : { rank: idx + 1, total: arr[idx].t };
+}
+function renderPuntFit() {
+  const box = document.getElementById("puntfit-result");
+  if (!box) return;
+  const p = puntFitId && getPlayer(puntFitId);
+  if (!p) { box.innerHTML = ""; return; }
+  const base = rankForPlayer(new Set(), puntFitId);
+  if (!base) { box.innerHTML = ""; return; }
+  const lbl = (k) => CATS.find((c) => c.k === k).l;
+  const opts = CAT_KEYS.map((k) => {
+    const r = rankForPlayer(new Set([k]), puntFitId);
+    return { k, rank: r.rank, delta: base.rank - r.rank };
+  }).sort((a, b) => b.delta - a.delta).slice(0, 4);
+  box.innerHTML =
+    `<div class="pf-base">${esc(p.name)} — overall rank <b>#${base.rank}</b> with no punt. Punts that help most:</div>` +
+    `<div class="pf-grid">` + opts.map((o) =>
+      `<div class="pf-card"><div class="cat">Punt ${lbl(o.k)}</div>` +
+      `<div class="delta">${o.delta > 0 ? "▲ +" + o.delta + " spots" : o.delta === 0 ? "no change" : "▼ " + o.delta}</div>` +
+      `<div class="rk">→ rank #${o.rank}</div></div>`).join("") + `</div>`;
+}
+
+/* ---- schedule / streaming ---- */
+let scheduleGames = [];
+function initSchedule() {
+  const date = document.getElementById("wk-date");
+  if (!date) return;
+  date.value = "2026-01-12";
+  document.getElementById("wk-prev").addEventListener("click", () => shiftWeek(-7));
+  document.getElementById("wk-next").addEventListener("click", () => shiftWeek(7));
+  date.addEventListener("change", renderSchedule);
+  loadSchedule();
+}
+async function loadSchedule() {
+  try {
+    const r = await fetch("data/schedule-2025-26.json");
+    if (!r.ok) throw new Error(r.status);
+    scheduleGames = (await r.json()).games;
+    renderSchedule();
+  } catch {
+    document.getElementById("sched-grid").innerHTML = '<div class="board-loading">Schedule unavailable.</div>';
+  }
+}
+function shiftWeek(days) {
+  const d = document.getElementById("wk-date");
+  const nd = new Date(d.value + "T00:00:00");
+  nd.setDate(nd.getDate() + days);
+  d.value = fmtDate(nd);
+  renderSchedule();
+}
+function renderSchedule() {
+  const grid = document.getElementById("sched-grid");
+  if (!grid || !scheduleGames.length) return;
+  const anchor = document.getElementById("wk-date").value || "2026-01-12";
+  const wk = gamesPerWeek(scheduleGames, anchor);
+  document.getElementById("wk-range").textContent = `${wk.weekStart} → ${wk.weekEnd} · ${wk.teams.length} teams playing`;
+  if (!wk.teams.length) {
+    grid.innerHTML = '<div class="board-loading">No games this week (offseason or break).</div>'; return;
+  }
+  const maxG = wk.teams[0].games;
+  grid.innerHTML = wk.teams.map((t) => {
+    const stream = t.games >= Math.max(4, maxG);
+    return `<div class="sc-team${stream ? " stream" : ""}">` +
+      `<div class="sc-head"><span class="tm">${t.team}</span><span class="ct">${t.games}</span></div>` +
+      `<div class="sc-dots">${"<span></span>".repeat(t.games)}</div>` +
+      (t.b2b ? `<div class="sc-b2b">${t.b2b} back-to-back${t.b2b > 1 ? "s" : ""}</div>` : "") +
+      `<div class="sc-dates">${t.dates.map((d) => d.slice(5)).join(" · ")}</div></div>`;
+  }).join("");
+}
+function gamesPerWeek(games, anchor) {
+  const [mon, sun] = weekBounds(anchor), ms = fmtDate(mon), ss = fmtDate(sun);
+  const per = {};
+  for (const g of games) if (g.date >= ms && g.date <= ss) for (const t of [g.home, g.away]) (per[t] = per[t] || []).push(g.date);
+  const teams = Object.entries(per).map(([team, ds]) => {
+    ds.sort(); let b2b = 0;
+    for (let i = 1; i < ds.length; i++) if (dayDiff(ds[i - 1], ds[i]) === 1) b2b++;
+    return { team, games: ds.length, b2b, dates: ds };
+  });
+  teams.sort((a, b) => b.games - a.games || a.team.localeCompare(b.team));
+  return { weekStart: ms, weekEnd: ss, teams };
+}
+function weekBounds(anchor) {
+  const d = new Date(anchor + "T00:00:00");
+  const wd = (d.getDay() + 6) % 7; // Monday = 0
+  const mon = new Date(d); mon.setDate(d.getDate() - wd);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  return [mon, sun];
+}
+const dayDiff = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

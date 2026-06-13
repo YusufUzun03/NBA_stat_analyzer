@@ -33,7 +33,8 @@
     <nav class="nav-links">
       <a href="#features">Features</a>
       <a href="#rankings">Rankings</a>
-      <a href="#how">How it works</a>
+      <a href="#trade">Trade</a>
+      <a href="#schedule">Schedule</a>
       <a id="api-link" class="btn btn-ghost" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">API</a>
     </nav>
   </header>
@@ -133,6 +134,62 @@
       </table>
     </div>
     <div id="board-note" class="board-note"></div>
+  </section>
+
+  <!-- ===================== TRADE ANALYZER ===================== -->
+  <section class="section" id="trade">
+    <h2 class="section-title reveal">Trade analyzer</h2>
+    <p class="section-lead reveal">Add players to each side for a category-by-category breakdown and a letter grade. Honors your punt settings from the board above.</p>
+
+    <div class="trade-grid reveal">
+      <div class="trade-side">
+        <h3>You give</h3>
+        <div class="ac" data-ac="give">
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <div class="ac-menu"></div>
+        </div>
+        <div class="trade-list" id="give-list"></div>
+      </div>
+
+      <div class="trade-result" id="trade-result">
+        <div class="trade-empty">Add players to both sides to grade the deal.</div>
+      </div>
+
+      <div class="trade-side">
+        <h3>You get</h3>
+        <div class="ac" data-ac="get">
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <div class="ac-menu"></div>
+        </div>
+        <div class="trade-list" id="get-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SCHEDULE / STREAMING ===================== -->
+  <section class="section" id="schedule">
+    <h2 class="section-title reveal">Schedule &amp; streaming</h2>
+    <p class="section-lead reveal">Games per team for any week, back-to-backs, and the best streaming targets (most games). Season 2025-26.</p>
+
+    <div class="sched-controls reveal">
+      <button id="wk-prev" class="btn btn-ghost" type="button">◀ Prev</button>
+      <input id="wk-date" type="date" />
+      <button id="wk-next" class="btn btn-ghost" type="button">Next ▶</button>
+      <span id="wk-range" class="wk-range"></span>
+    </div>
+    <div class="sched-grid reveal" id="sched-grid"></div>
+  </section>
+
+  <!-- ===================== PUNT FIT FINDER ===================== -->
+  <section class="section" id="puntfit">
+    <h2 class="section-title reveal">Punt fit finder</h2>
+    <p class="section-lead reveal">Pick a player to see which categories to punt to lift their value the most.</p>
+
+    <div class="ac ac-wide reveal" data-ac="punt">
+      <input type="search" placeholder="🔍  Search a player…" autocomplete="off" />
+      <div class="ac-menu"></div>
+    </div>
+    <div class="puntfit-result reveal" id="puntfit-result"></div>
   </section>
 
   <!-- ===================== HOW ===================== -->
