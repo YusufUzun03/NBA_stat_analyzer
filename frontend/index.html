@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HoopIQ — NBA Fantasy Stat Analyzer</title>
+  <meta name="description" content="9-category z-score rankings, live punt analysis, trade grades and projections for fantasy basketball." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- animated court-glow background -->
+  <div class="bg-orbs" aria-hidden="true">
+    <span class="orb orb-1"></span>
+    <span class="orb orb-2"></span>
+    <span class="orb orb-3"></span>
+  </div>
+
+  <header class="nav" id="nav">
+    <a class="brand" href="#top">
+      <span class="brand-mark">🏀</span>
+      <span class="brand-name">Hoop<strong>IQ</strong></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#rankings">Rankings</a>
+      <a href="#how">How it works</a>
+      <a class="btn btn-ghost" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">API</a>
+    </nav>
+  </header>
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero" id="top">
+    <div class="hero-copy">
+      <span class="eyebrow">9-CATEGORY · Z-SCORE ENGINE</span>
+      <h1 class="hero-title">
+        Win your league<br />with <span class="grad">real analytics.</span>
+      </h1>
+      <p class="hero-sub">
+        Live z-score rankings, instant punt-strategy re-ranking, trade grades and
+        rest-of-season projections — powered by full-season NBA data.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#rankings">See live rankings</a>
+        <a class="btn btn-outline" href="#features">Explore tools</a>
+      </div>
+      <div class="hero-stats">
+        <div><b data-count="582">0</b><span>players ranked</span></div>
+        <div><b data-count="9">0</b><span>categories</span></div>
+        <div><b data-count="1279">0</b><span>games tracked</span></div>
+      </div>
+    </div>
+
+    <div class="hero-ball">
+      <div id="ball-canvas" class="ball-canvas"></div>
+      <div class="ball-shadow"></div>
+    </div>
+  </section>
+
+  <!-- ===================== FEATURES ===================== -->
+  <section class="section" id="features">
+    <h2 class="section-title reveal">Everything a manager needs</h2>
+    <p class="section-lead reveal">Four tools built on one transparent valuation engine.</p>
+    <div class="cards">
+      <article class="card reveal">
+        <div class="card-ic">📊</div>
+        <h3>Z-Score Rankings</h3>
+        <p>Volume-weighted FG%/FT%, inverted turnovers, configurable player pool. The same math the pros use.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-ic">🎯</div>
+        <h3>Punt Analyzer</h3>
+        <p>Drop any categories you're punting and watch every player re-rank live for your exact build.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-ic">🔁</div>
+        <h3>Trade Analyzer</h3>
+        <p>Compare both sides category-by-category and get an instant letter grade with a clear verdict.</p>
+      </article>
+      <article class="card reveal">
+        <div class="card-ic">🗓️</div>
+        <h3>Schedule & Streaming</h3>
+        <p>Games-per-week, back-to-backs and the best streaming targets for any week of the season.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===================== LIVE RANKINGS ===================== -->
+  <section class="section" id="rankings">
+    <h2 class="section-title reveal">Live top-value players</h2>
+    <p class="section-lead reveal">Straight from the engine. Toggle a punt and the board re-ranks instantly.</p>
+
+    <div class="punts reveal" id="punts" role="group" aria-label="Punt categories"></div>
+
+    <div class="board reveal">
+      <div class="board-head">
+        <span>#</span><span>Player</span><span>Team</span><span>Total</span>
+        <span class="hide-sm">PTS</span><span class="hide-sm">REB</span><span class="hide-sm">AST</span>
+      </div>
+      <div id="board-rows" class="board-rows">
+        <div class="board-loading">Loading rankings…</div>
+      </div>
+      <div id="board-note" class="board-note"></div>
+    </div>
+  </section>
+
+  <!-- ===================== HOW ===================== -->
+  <section class="section how" id="how">
+    <h2 class="section-title reveal">How the value is built</h2>
+    <div class="steps">
+      <div class="step reveal"><span>1</span><p>Pull full-season per-game stats for every player.</p></div>
+      <div class="step reveal"><span>2</span><p>Compute z-scores vs a rosterable player pool — percentages weighted by volume.</p></div>
+      <div class="step reveal"><span>3</span><p>Sum the nine categories into one total value, then rank.</p></div>
+      <div class="step reveal"><span>4</span><p>Punt a category and the whole board recomputes for your build.</p></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>HoopIQ · built with a 9-category z-score engine · data from basketball-reference.com</p>
+  </footer>
+
+  <script type="module" src="js/basketball.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
