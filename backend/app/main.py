@@ -38,8 +38,9 @@ def get_players(
     punt: str | None = Query(None, description="csv of categories, e.g. ft,tov"),
     limit: int = Query(200, ge=1, le=1000),
     season: str = Query(DEFAULT_SEASON),
+    min_minutes: float = Query(12.0, ge=0, le=40, description="per-game minutes floor"),
 ):
-    return service.rankings(season, pool, parse_punt(punt), limit)
+    return service.rankings(season, pool, parse_punt(punt), limit, min_minutes)
 
 
 @app.get("/api/players/{player_id}")

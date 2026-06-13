@@ -15,9 +15,10 @@ def load_players(season: str = DEFAULT_SEASON) -> list[dict]:
     return nba_client.get_player_stats(season)
 
 
-def rankings(season: str, pool: int, punt: list[str], limit: int) -> dict:
-    results = zscore.compute_values(load_players(season), pool=pool, punt=punt)
-    return {"season": season, "pool": pool, "punt": punt, "players": results[:limit]}
+def rankings(season: str, pool: int, punt: list[str], limit: int, min_minutes: float = 12.0) -> dict:
+    results = zscore.compute_values(load_players(season), pool=pool, punt=punt, min_minutes=min_minutes)
+    return {"season": season, "pool": pool, "punt": punt, "min_minutes": min_minutes,
+            "count": len(results), "players": results[:limit]}
 
 
 def player_detail(season: str, player_id: str, pool: int, punt: list[str]) -> dict | None:

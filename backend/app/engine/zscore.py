@@ -54,8 +54,8 @@ def _makes_att_keys(vol: str) -> tuple[str, str]:
     return vol[:-1] + "m", vol
 
 
-def _qualified(players: Iterable[dict]) -> list[dict]:
-    return [p for p in players if float(p.get("min") or 0) >= MIN_MINUTES
+def _qualified(players: Iterable[dict], min_minutes: float = MIN_MINUTES) -> list[dict]:
+    return [p for p in players if float(p.get("min") or 0) >= min_minutes
             and float(p.get("gp") or 0) >= 1]
 
 
@@ -88,14 +88,18 @@ def compute_values(
     players: list[dict],
     pool: int = DEFAULT_POOL,
     punt: list[str] | None = None,
+    min_minutes: float = MIN_MINUTES,
 ) -> list[dict]:
     """Rank players by total 9-cat z-score.
+
+    `min_minutes` sets the per-game-minutes floor for a player to qualify (and to
+    enter the baseline pool) — raising it trims small-sample noise from the board.
 
     Returns a list of result dicts sorted by `total` desc, each with `rank`,
     raw `stats`, per-category `z` (punted cats omitted), and `total`.
     """
     punt = punt or []
-    qualified = _qualified(players)
+    qualified = _qualified(players, min_minutes)
     if not qualified:
         return []
 

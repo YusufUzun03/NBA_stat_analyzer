@@ -96,21 +96,43 @@
 
   <!-- ===================== LIVE RANKINGS ===================== -->
   <section class="section" id="rankings">
-    <h2 class="section-title reveal">Live top-value players</h2>
-    <p class="section-lead reveal">Straight from the engine. Toggle a punt and the board re-ranks instantly.</p>
+    <h2 class="section-title reveal">Player value board</h2>
+    <p class="section-lead reveal">Search, sort any category, filter by position or team, and toggle punts — the board re-ranks instantly with a per-category z-score heatmap.</p>
 
+    <div class="toolbar reveal">
+      <div class="tool tool-search">
+        <input id="search" type="search" placeholder="🔍  Search player…" autocomplete="off" />
+      </div>
+      <div class="tool">
+        <label for="season">Season</label>
+        <select id="season"></select>
+      </div>
+      <div class="tool">
+        <label for="team">Team</label>
+        <select id="team"></select>
+      </div>
+      <div class="tool">
+        <label for="pool">Pool <b id="poolVal">156</b></label>
+        <input id="pool" type="range" min="60" max="300" step="6" value="156" />
+      </div>
+      <div class="tool">
+        <label for="minMin">Min MPG <b id="minVal">12</b></label>
+        <input id="minMin" type="range" min="0" max="34" step="1" value="12" />
+      </div>
+      <button id="reset" class="btn btn-ghost" type="button">Reset</button>
+      <button id="export" class="btn btn-ghost" type="button">⬇ CSV</button>
+    </div>
+
+    <div class="pos-chips reveal" id="posChips" role="group" aria-label="Position filter"></div>
     <div class="punts reveal" id="punts" role="group" aria-label="Punt categories"></div>
 
-    <div class="board reveal">
-      <div class="board-head">
-        <span>#</span><span>Player</span><span>Team</span><span>Total</span>
-        <span class="hide-sm">PTS</span><span class="hide-sm">REB</span><span class="hide-sm">AST</span>
-      </div>
-      <div id="board-rows" class="board-rows">
-        <div class="board-loading">Loading rankings…</div>
-      </div>
-      <div id="board-note" class="board-note"></div>
+    <div class="board-wrap reveal">
+      <table class="rank-table" id="rankTable">
+        <thead></thead>
+        <tbody><tr><td class="board-loading">Loading rankings…</td></tr></tbody>
+      </table>
     </div>
+    <div id="board-note" class="board-note"></div>
   </section>
 
   <!-- ===================== HOW ===================== -->
