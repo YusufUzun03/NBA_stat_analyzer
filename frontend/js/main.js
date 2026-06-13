@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initCounters();
   initControls();
   initTools();
+  initModal();
   load();
 });
 
@@ -172,6 +173,7 @@ async function load() {
     populateTeams();
     render();
     refreshTools();
+    renderLeaders();
   } catch (err) {
     rawPlayers = [];
     renderEmpty(API
@@ -256,6 +258,7 @@ function buildHead() {
     { key: "gp", lbl: "GP" },
     { key: "total", lbl: "Total" },
     ...CATS.map((c) => ({ key: c.k, lbl: c.l, z: true })),
+    { key: "cmp", lbl: "⊕", cls: "c-cmp-h", noSort: true },
   ];
   const thead = document.querySelector("#rankTable thead");
   const tr = document.createElement("tr");
@@ -263,13 +266,18 @@ function buildHead() {
     const th = document.createElement("th");
     th.className = (c.cls || "") + (c.z && state.punts.has(c.key) ? " punted" : "");
     const active = state.sortKey === c.key || (c.key === "rank" && state.sortKey === "total");
-    th.innerHTML = c.lbl + (active ? `<span class="arr">${state.sortDir === "asc" ? "▲" : "▼"}</span>` : "");
-    th.addEventListener("click", () => {
-      const key = c.key === "rank" ? "total" : c.key;
-      if (state.sortKey === key) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
-      else { state.sortKey = key; state.sortDir = key === "name" || key === "team" || key === "pos" ? "asc" : "desc"; }
-      render();
-    });
+    th.innerHTML = c.lbl + (!c.noSort && active ? `<span class="arr">${state.sortDir === "asc" ? "▲" : "▼"}</span>` : "");
+    if (!c.noSort) {
+      th.addEventListener("click", () => {
+        const key = c.key === "rank" ? "total" : c.key;
+        if (state.sortKey === key) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+        else { state.sortKey = key; state.sortDir = key === "name" || key === "team" || key === "pos" ? "asc" : "desc"; }
+        render();
+      });
+    } else {
+      th.style.cursor = "default";
+      th.title = "Add to compare";
+    }
     tr.appendChild(th);
   });
   thead.innerHTML = "";
@@ -279,9 +287,10 @@ function buildHead() {
 function rowEl(p) {
   const tr = document.createElement("tr");
   if (p.rank === 1) tr.className = "top1";
+  const inCmp = compareList.includes(p.id);
   tr.innerHTML =
-    `<td class="l c-rk">${p.rank}</td>` +
-    `<td class="l c-name">${esc(p.name)}</td>` +
+    `<td class="l c-rk">${p.rank}${tierDot(p.total)}</td>` +
+    `<td class="l c-name" data-id="${esc(p.id)}" style="cursor:pointer" title="View details">${esc(p.name)}</td>` +
     `<td class="l c-pos">${esc(p.pos || "")}</td>` +
     `<td class="l c-team">${esc(p.team || "")}</td>` +
     `<td class="c-gp">${p.gp ?? "—"}</td>` +
@@ -291,7 +300,8 @@ function rowEl(p) {
       const punted = state.punts.has(c.k);
       const bg = punted || z == null ? "" : `background:${heat(z)}`;
       return `<td class="z${punted ? " punted" : ""}" style="${bg}">${z == null ? "—" : z.toFixed(2)}</td>`;
-    }).join("");
+    }).join("") +
+    `<td class="c-cmp"><button class="cmp-btn${inCmp ? " in-cmp" : ""}" data-id="${esc(p.id)}" title="${inCmp ? "Remove from compare" : "Add to compare"}">⊕</button></td>`;
   return tr;
 }
 
@@ -349,6 +359,13 @@ function initTools() {
   attachAC(document.querySelector('.ac[data-ac="get"]'), (p) => addTrade("get", p.id));
   attachAC(document.querySelector('.ac[data-ac="punt"]'), (p) => { puntFitId = p.id; renderPuntFit(); });
   initSchedule();
+  // Phase 3: event delegation for player modal + compare buttons
+  document.getElementById("rankTable").addEventListener("click", (e) => {
+    const nameCell = e.target.closest("td.c-name[data-id]");
+    if (nameCell) { const p = getPlayer(nameCell.dataset.id); if (p) { openModal(p); return; } }
+    const cmpBtn = e.target.closest(".cmp-btn[data-id]");
+    if (cmpBtn) toggleCompare(cmpBtn.dataset.id);
+  });
 }
 function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); }
 
@@ -531,3 +548,251 @@ function weekBounds(anchor) {
 }
 const dayDiff = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/* ============================ PHASE 3 DEPTH ============================ */
+
+/* ---- radar SVG ---- */
+function radarSVG(players, size = 240) {
+  const cx = size / 2, cy = size / 2, maxR = size * 0.35;
+  const n = CATS.length, step = (2 * Math.PI) / n;
+  const angle = (i) => -Math.PI / 2 + i * step;
+  const pt = (i, r) => ({ x: cx + r * Math.cos(angle(i)), y: cy + r * Math.sin(angle(i)) });
+  const norm = (z) => Math.max(0.04, Math.min(1, (z + 3) / 6));
+  const COLORS = ["#ee6730", "#ffc24b", "#44d07b", "#3a6df0"];
+  let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">`;
+  // grid polygons
+  for (const pct of [0.25, 0.5, 0.75, 1]) {
+    const pts = CATS.map((_, i) => { const p = pt(i, maxR * pct); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; });
+    svg += `<polygon points="${pts.join(" ")}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
+  }
+  // axis lines
+  for (let i = 0; i < n; i++) {
+    const e = pt(i, maxR);
+    svg += `<line x1="${cx}" y1="${cy}" x2="${e.x.toFixed(1)}" y2="${e.y.toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+  }
+  // player shapes
+  players.forEach((player, pi) => {
+    const col = COLORS[pi % COLORS.length];
+    const points = CATS.map((c, i) => {
+      const p = pt(i, maxR * norm(player.z?.[c.k] ?? 0));
+      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    });
+    svg += `<polygon points="${points.join(" ")}" fill="${col}" fill-opacity="0.15" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>`;
+    CATS.forEach((c, i) => {
+      const p = pt(i, maxR * norm(player.z?.[c.k] ?? 0));
+      svg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${col}"/>`;
+    });
+  });
+  // category labels
+  CATS.forEach((c, i) => {
+    const p = pt(i, maxR + 19);
+    const anc = p.x > cx + 4 ? "start" : p.x < cx - 4 ? "end" : "middle";
+    svg += `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anc}" dominant-baseline="middle" fill="rgba(255,255,255,0.62)" font-size="10" font-family="Inter,sans-serif" font-weight="600">${c.l}</text>`;
+  });
+  return svg + "</svg>";
+}
+
+/* ---- tier ---- */
+function tierInfo(total) {
+  if (total >= 4.5) return { label: "Elite",    cls: "tier-elite" };
+  if (total >= 2.5) return { label: "Star",     cls: "tier-star" };
+  if (total >= 0.5) return { label: "Starter",  cls: "tier-starter" };
+  if (total >= -0.5) return { label: "Deep",    cls: "tier-border" };
+  return                     { label: "Below",  cls: "tier-below" };
+}
+function tierDot(total) {
+  if (total >= 4.5) return `<span class="tier-dot tier-dot-elite"  title="Elite"></span>`;
+  if (total >= 2.5) return `<span class="tier-dot tier-dot-star"   title="Star"></span>`;
+  if (total >= 0.5) return `<span class="tier-dot tier-dot-starter" title="Starter"></span>`;
+  return "";
+}
+
+/* ---- player stat helpers ---- */
+const RAW_MAP = { pts:"pts", reb:"reb", ast:"ast", stl:"stl", blk:"blk", tpm:"tpm", fg:"fg_pct", ft:"ft_pct", tov:"tov" };
+const RAW_FMT = (k, v) => v == null ? "—" : (k === "fg" || k === "ft") ? (v * 100).toFixed(1) + "%" : (+v).toFixed(1);
+
+/* ---- player detail modal ---- */
+function initModal() {
+  const overlay = document.getElementById("modal-overlay");
+  if (!overlay) return;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+  document.getElementById("modal-close")?.addEventListener("click", closeModal);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+}
+function openModal(p) {
+  const overlay = document.getElementById("modal-overlay");
+  const content = document.getElementById("modal-content");
+  if (!overlay || !content) return;
+  content.innerHTML = buildModalHTML(p);
+  content.querySelector(".modal-cmp-btn")?.addEventListener("click", () => {
+    toggleCompare(p.id);
+    // refresh button label without closing
+    const btn = content.querySelector(".modal-cmp-btn");
+    if (btn) {
+      const inCmp = compareList.includes(p.id);
+      btn.textContent = inCmp ? "✓ In comparison" : "⊕ Add to compare";
+      btn.classList.toggle("in-cmp", inCmp);
+    }
+  });
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+function closeModal() {
+  const overlay = document.getElementById("modal-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+function buildModalHTML(p) {
+  const tier = tierInfo(p.total);
+  const inCmp = compareList.includes(p.id);
+  return `
+    <div class="modal-header">
+      <div class="modal-name">${esc(p.name)}</div>
+      <div class="modal-meta">${esc(p.team || "—")} · ${esc(p.pos || "—")} · ${p.gp ?? "—"} GP · ${(+(p.min ?? 0)).toFixed(1)} MPG</div>
+      <div class="modal-tier-row">
+        <span class="modal-total">#${p.rank} &nbsp;·&nbsp; <b>${p.total >= 0 ? "+" : ""}${p.total.toFixed(2)}</b> total z</span>
+        <span class="tier-badge ${tier.cls}">${tier.label}</span>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-radar">${radarSVG([p], 230)}</div>
+      <div class="modal-cats">
+        ${CATS.map((c) => {
+          const z = p.z?.[c.k] ?? 0;
+          const punted = state.punts.has(c.k);
+          const barPct = Math.max(3, Math.min(100, ((z + 3) / 6) * 100)).toFixed(1);
+          const col = z >= 0 ? "var(--good)" : "var(--bad)";
+          const raw = p.stats?.[RAW_MAP[c.k]];
+          return `<div class="mc-row${punted ? " mc-punted" : ""}">
+            <span class="mc-lbl">${c.l}</span>
+            <div class="mc-bar-wrap"><div class="mc-bar" style="width:${barPct}%;background:${col}"></div></div>
+            <span class="mc-z" style="color:${col}">${z >= 0 ? "+" : ""}${z.toFixed(2)}</span>
+            <span class="mc-raw">${RAW_FMT(c.k, raw)}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>
+    <div class="modal-raw">
+      ${CATS.map((c) => {
+        const raw = p.stats?.[RAW_MAP[c.k]];
+        return `<div class="mraw-cell"><span>${c.l}</span><b>${RAW_FMT(c.k, raw)}</b></div>`;
+      }).join("")}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost modal-cmp-btn${inCmp ? " in-cmp" : ""}">${inCmp ? "✓ In comparison" : "⊕ Add to compare"}</button>
+    </div>`;
+}
+
+/* ---- category leaders ---- */
+const LEADERS_META = [
+  { key:"pts", label:"PTS",    stat:"pts",    low:false },
+  { key:"reb", label:"REB",    stat:"reb",    low:false },
+  { key:"ast", label:"AST",    stat:"ast",    low:false },
+  { key:"stl", label:"STL",    stat:"stl",    low:false },
+  { key:"blk", label:"BLK",    stat:"blk",    low:false },
+  { key:"tpm", label:"3PM",    stat:"tpm",    low:false },
+  { key:"fg",  label:"FG%",    stat:"fg_pct", low:false },
+  { key:"ft",  label:"FT%",    stat:"ft_pct", low:false },
+  { key:"tov", label:"TOV ↓",  stat:"tov",    low:true  },
+];
+function renderLeaders() {
+  const grid = document.getElementById("leaders-grid");
+  if (!grid || !rawPlayers.length) return;
+  grid.innerHTML = LEADERS_META.map((cat) => {
+    const sorted = rawPlayers
+      .filter((p) => p.stats?.[cat.stat] != null)
+      .sort((a, b) => cat.low
+        ? a.stats[cat.stat] - b.stats[cat.stat]
+        : b.stats[cat.stat] - a.stats[cat.stat])
+      .slice(0, 5);
+    return `<div class="ldr-card">
+      <div class="ldr-cat">${cat.label}</div>
+      ${sorted.map((p, i) => `
+        <div class="ldr-row">
+          <span class="ldr-rk">${i + 1}</span>
+          <span class="ldr-name" data-id="${esc(p.id)}">${esc(p.name)}</span>
+          <span class="ldr-val">${RAW_FMT(cat.key, p.stats[cat.stat])}</span>
+        </div>`).join("")}
+    </div>`;
+  }).join("");
+  grid.querySelectorAll(".ldr-name[data-id]").forEach((el) =>
+    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+}
+
+/* ---- compare ---- */
+const compareList = [];
+function toggleCompare(id) {
+  const i = compareList.indexOf(id);
+  if (i >= 0) compareList.splice(i, 1);
+  else if (compareList.length < 4) compareList.push(id);
+  renderCompareTray();
+  render(); // refresh ⊕ button states in table
+}
+function clearCompare() { compareList.length = 0; renderCompareTray(); render(); }
+function renderCompareTray() {
+  const tray = document.getElementById("compare-tray");
+  if (!tray) return;
+  if (!compareList.length) { tray.classList.remove("open"); return; }
+  tray.classList.add("open");
+  const players = compareList.map(getPlayer).filter(Boolean);
+  tray.innerHTML = `<div class="ct-inner">
+    <span class="ct-label">Compare ${players.length}/4</span>
+    ${players.map((p) =>
+      `<span class="ct-player">${esc(p.name)}<button class="ct-remove" data-id="${esc(p.id)}">×</button></span>`
+    ).join("")}
+    ${players.length >= 2
+      ? `<button class="btn btn-primary ct-go" id="ct-open">Compare →</button>` : ""}
+    <button class="btn btn-ghost" id="ct-clear">Clear</button>
+  </div>`;
+  tray.querySelectorAll(".ct-remove").forEach((btn) =>
+    btn.addEventListener("click", () => toggleCompare(btn.dataset.id)));
+  tray.querySelector("#ct-open")?.addEventListener("click", openCompareModal);
+  tray.querySelector("#ct-clear")?.addEventListener("click", clearCompare);
+}
+function openCompareModal() {
+  const players = compareList.map(getPlayer).filter(Boolean);
+  if (players.length < 2) return;
+  const content = document.getElementById("modal-content");
+  const overlay = document.getElementById("modal-overlay");
+  if (!content || !overlay) return;
+  const COLORS = ["#ee6730", "#ffc24b", "#44d07b", "#3a6df0"];
+  const headers = players.map((p, i) =>
+    `<th style="color:${COLORS[i % COLORS.length]}">${esc(p.name)}<br><small style="font-weight:400;color:var(--muted)">${esc(p.team||"")} · ${esc(p.pos||"")}</small></th>`).join("");
+  const catRows = CATS.map((c) => {
+    const vals = players.map((p) => p.z?.[c.k] ?? 0);
+    const best = Math.max(...vals);
+    const punted = state.punts.has(c.k);
+    return `<tr${punted ? ' style="opacity:.35"' : ""}>
+      <td class="cat-lbl">${c.l}</td>
+      ${vals.map((v) => `<td class="${v === best && players.length > 1 ? "best" : ""}">${v >= 0 ? "+" : ""}${v.toFixed(2)}</td>`).join("")}
+    </tr>`;
+  });
+  const totals = players.map((p) => puntedTotal(p));
+  const bestTotal = Math.max(...totals);
+  content.innerHTML = `
+    <div class="modal-header">
+      <div class="modal-name">Player Comparison</div>
+      <div class="modal-meta">${players.length} players · punt settings applied · highest value highlighted green</div>
+    </div>
+    <div class="cmp-radar">${radarSVG(players, Math.min(300, window.innerWidth - 80))}</div>
+    <div class="cmp-legend">${players.map((p, i) =>
+      `<span style="color:${COLORS[i % COLORS.length]}">■ ${esc(p.name)}</span>`).join("")}</div>
+    <div style="overflow-x:auto;margin-top:14px">
+      <table class="cmp-table">
+        <thead><tr><th class="cat-lbl">Cat</th>${headers}</tr></thead>
+        <tbody>
+          ${catRows.join("")}
+          <tr class="total-row">
+            <td class="cat-lbl">TOTAL</td>
+            ${totals.map((v) => `<td class="${v === bestTotal ? "best" : ""}">${v >= 0 ? "+" : ""}${v.toFixed(2)}</td>`).join("")}
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}

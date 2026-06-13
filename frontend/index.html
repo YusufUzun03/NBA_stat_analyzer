@@ -35,6 +35,7 @@
       <a href="#rankings">Rankings</a>
       <a href="#trade">Trade</a>
       <a href="#schedule">Schedule</a>
+      <a href="#leaders">Leaders</a>
       <a id="api-link" class="btn btn-ghost" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">API</a>
     </nav>
   </header>
@@ -192,6 +193,15 @@
     <div class="puntfit-result reveal" id="puntfit-result"></div>
   </section>
 
+  <!-- ===================== CATEGORY LEADERS ===================== -->
+  <section class="section" id="leaders">
+    <h2 class="section-title reveal">Category leaders</h2>
+    <p class="section-lead reveal">Top 5 players in each statistical category — raw per-game averages. Click any name for the full breakdown.</p>
+    <div class="leaders-grid reveal" id="leaders-grid">
+      <div class="board-loading">Loading leaders…</div>
+    </div>
+  </section>
+
   <!-- ===================== HOW ===================== -->
   <section class="section how" id="how">
     <h2 class="section-title reveal">How the value is built</h2>
@@ -206,6 +216,17 @@
   <footer class="footer">
     <p>HoopIQ · built with a 9-category z-score engine · data from basketball-reference.com</p>
   </footer>
+
+  <!-- ===================== PLAYER MODAL ===================== -->
+  <div id="modal-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box" role="dialog" aria-modal="true">
+      <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <!-- ===================== COMPARE TRAY ===================== -->
+  <div id="compare-tray" class="compare-tray" aria-live="polite"></div>
 
   <script type="module" src="js/basketball.js"></script>
   <script type="module" src="js/main.js"></script>
