@@ -175,6 +175,7 @@ async function load() {
     refreshTools();
     renderLeaders();
     renderPlayerGrid("");
+    fetchAdvanced(); // fire-and-forget; populates advancedData for modals
   } catch (err) {
     rawPlayers = [];
     renderEmpty(API
@@ -192,6 +193,29 @@ async function fetchPlayers() {
   const r = await fetch(`data/players-${state.season}.json`);
   if (!r.ok) throw new Error(r.status);
   return (await r.json()).players;
+}
+
+// Advanced stats — keyed by player id
+let advancedData = {};
+let advancedLoaded = false;
+async function fetchAdvanced() {
+  if (advancedLoaded) return;
+  try {
+    if (API) {
+      const r = await fetch(`${API}/api/advanced?season=${state.season}`, { signal: AbortSignal.timeout(12000) });
+      if (r.ok) {
+        const rows = await r.json();
+        rows.forEach((p) => { advancedData[p.id] = p; });
+        advancedLoaded = true; return;
+      }
+    }
+    const r = await fetch(`data/advanced-${state.season}.json`);
+    if (r.ok) {
+      const j = await r.json();
+      advancedData = j.players || {};
+      advancedLoaded = true;
+    }
+  } catch {}
 }
 
 /* ---------- compute + render ---------- */
@@ -637,11 +661,10 @@ function openModal(p) {
     if (!tab) return;
     content.querySelectorAll(".modal-tab").forEach((t) => t.classList.toggle("active", t === tab));
     const tabBody = document.getElementById("modal-tab-body");
-    if (tab.dataset.tab === "stats") {
-      tabBody.innerHTML = buildStatsTabHTML(currentModalPlayer);
-    } else {
-      loadAndShowCareer(currentModalPlayer, tabBody);
-    }
+    const which = tab.dataset.tab;
+    if (which === "stats") tabBody.innerHTML = buildStatsTabHTML(currentModalPlayer);
+    else if (which === "recent") loadAndShowRecent(currentModalPlayer, tabBody);
+    else loadAndShowCareer(currentModalPlayer, tabBody);
   });
   // Compare button
   content.querySelector(".modal-cmp-btn")?.addEventListener("click", () => {
@@ -678,6 +701,7 @@ function buildModalHTML(p) {
     </div>
     <div class="modal-tabs" id="modal-tabs">
       <button class="modal-tab active" data-tab="stats">Fantasy Stats</button>
+      <button class="modal-tab" data-tab="recent">Recent Form</button>
       <button class="modal-tab" data-tab="career">Career</button>
     </div>
     <div id="modal-tab-body">${buildStatsTabHTML(p)}</div>
@@ -686,6 +710,18 @@ function buildModalHTML(p) {
     </div>`;
 }
 function buildStatsTabHTML(p) {
+  const adv = advancedData[p.id] || {};
+  const fmtAdv = (v, pct) => v == null || v === 0 ? "—" : pct ? (v * 100).toFixed(1) + "%" : (+v).toFixed(1);
+  const bpmColor = (v) => v == null ? "" : v >= 0 ? "color:var(--good)" : "color:var(--bad)";
+  const advSection = `
+    <div class="adv-grid">
+      <div class="adv-cell"><span class="adv-lbl">PER</span><b class="adv-val">${fmtAdv(adv.per)}</b></div>
+      <div class="adv-cell"><span class="adv-lbl">TS%</span><b class="adv-val">${fmtAdv(adv.ts_pct, true)}</b></div>
+      <div class="adv-cell"><span class="adv-lbl">USG%</span><b class="adv-val">${fmtAdv(adv.usg_pct, true)}</b></div>
+      <div class="adv-cell"><span class="adv-lbl">WS</span><b class="adv-val">${fmtAdv(adv.ws)}</b></div>
+      <div class="adv-cell"><span class="adv-lbl">BPM</span><b class="adv-val" style="${bpmColor(adv.bpm)}">${adv.bpm != null ? (adv.bpm >= 0 ? "+" : "") + (+adv.bpm).toFixed(1) : "—"}</b></div>
+      <div class="adv-cell"><span class="adv-lbl">VORP</span><b class="adv-val">${fmtAdv(adv.vorp)}</b></div>
+    </div>`;
   return `
     <div class="modal-body">
       <div class="modal-radar">${radarSVG([p], 230)}</div>
@@ -710,7 +746,8 @@ function buildStatsTabHTML(p) {
         const raw = p.stats?.[RAW_MAP[c.k]];
         return `<div class="mraw-cell"><span>${c.l}</span><b>${RAW_FMT(c.k, raw)}</b></div>`;
       }).join("")}
-    </div>`;
+    </div>
+    ${advSection}`;
 }
 
 /* ---- category leaders ---- */
@@ -941,6 +978,150 @@ function buildCareerTable(seasons) {
     return `<tr${cur?' class="current-season"':""}>${cells}</tr>`;
   }).join("");
   return `<table class="career-tbl"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- recent form (game log) ---- */
+const recentCache = {};
+
+async function loadAndShowRecent(p, tabBody) {
+  tabBody.innerHTML = '<div class="career-loading">Loading recent games…</div>';
+  if (!API) {
+    tabBody.innerHTML = `<div class="career-empty">Recent Form requires the local API server.<br><small>Start it with: <code>uvicorn app.main:app</code></small></div>`;
+    return;
+  }
+  try {
+    if (!recentCache[p.id]) {
+      const r = await fetch(`${API}/api/players/${p.id}/gamelog?season=${state.season}`, { signal: AbortSignal.timeout(20000) });
+      if (!r.ok) throw new Error(r.status);
+      recentCache[p.id] = await r.json();
+    }
+    const games = recentCache[p.id];
+    if (!games.length) {
+      tabBody.innerHTML = `<div class="career-empty">No game log available for ${esc(p.name)} this season.</div>`;
+      return;
+    }
+    renderRecentTab(p, games, tabBody, 15);
+  } catch (err) {
+    tabBody.innerHTML = `<div class="career-empty">Couldn't load game log.<br><small>${esc(String(err))}</small></div>`;
+  }
+}
+
+function renderRecentTab(p, allGames, tabBody, n) {
+  const games = allGames.slice(-n);  // last N played
+  const seasonAvg = p.stats || {};
+
+  // average over selected games
+  const avg = (key) => {
+    const vals = games.map((g) => g[key]).filter((v) => v != null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  };
+  const avgStats = { pts: avg("pts"), reb: avg("reb"), ast: avg("ast"),
+                     stl: avg("stl"), blk: avg("blk"), tov: avg("tov"),
+                     tpm: avg("tpm"), fg_pct: avg("fg_pct"), ft_pct: avg("ft_pct") };
+
+  const RECENT_COLS = [
+    { h: "Date",  k: "date",   fmt: (v) => v?.slice(5) ?? "—", lft: true },
+    { h: "Opp",   k: "opp",    fmt: (v) => v ?? "—",           lft: true },
+    { h: "Res",   k: "result", fmt: (v) => v?.split(" ")[0] ?? "—", cls: (v) => v?.startsWith("W") ? "win" : "loss" },
+    { h: "PTS",   k: "pts",    ref: "pts",    pct: false },
+    { h: "REB",   k: "reb",    ref: "reb",    pct: false },
+    { h: "AST",   k: "ast",    ref: "ast",    pct: false },
+    { h: "STL",   k: "stl",    ref: "stl",    pct: false },
+    { h: "BLK",   k: "blk",    ref: "blk",    pct: false },
+    { h: "TOV",   k: "tov",    ref: "tov",    pct: false, inv: true },
+    { h: "3PM",   k: "tpm",    ref: "tpm",    pct: false },
+    { h: "FG%",   k: "fg_pct", ref: "fg_pct", pct: true  },
+    { h: "FT%",   k: "ft_pct", ref: "ft_pct", pct: true  },
+  ];
+
+  const fmtStat = (v, pct) => v == null ? "—" : pct ? (v * 100).toFixed(1) + "%" : (+v).toFixed(1);
+
+  // heat color based on deviation from season average
+  const heatCell = (val, ref, inv) => {
+    if (val == null || ref == null || ref === 0) return "";
+    const diff = val - ref;
+    const pct = diff / Math.abs(ref);
+    const good = inv ? pct < -0.1 : pct > 0.1;
+    const bad  = inv ? pct > 0.1  : pct < -0.1;
+    if (good) return `background:rgba(68,208,123,${Math.min(0.5, Math.abs(pct) * 0.8).toFixed(2)})`;
+    if (bad)  return `background:rgba(255,92,108,${Math.min(0.5, Math.abs(pct) * 0.8).toFixed(2)})`;
+    return "";
+  };
+
+  const headers = RECENT_COLS.map((c) => `<th${c.lft ? ' class="cat-lbl"' : ""}>${c.h}</th>`).join("");
+
+  const avgRow = `<tr class="recent-avg-row">
+    ${RECENT_COLS.map((c) => {
+      if (!c.ref) return `<td class="cat-lbl" style="font-weight:600">L${n} avg</td>`;
+      const v = avgStats[c.ref];
+      return `<td style="font-weight:600">${fmtStat(v, c.pct)}</td>`;
+    }).join("")}
+  </tr>`;
+
+  const gameRows = [...games].reverse().map((g) =>
+    `<tr>${RECENT_COLS.map((c) => {
+      if (c.fmt) {
+        const cls = c.cls ? c.cls(g[c.k]) : (c.lft ? "cat-lbl" : "");
+        return `<td${cls ? ` class="${cls}"` : ""}>${c.fmt(g[c.k])}</td>`;
+      }
+      const v = g[c.k];
+      const ref = c.ref ? seasonAvg[c.ref === "fg_pct" ? "fg_pct" : c.ref === "ft_pct" ? "ft_pct" : c.ref] : null;
+      const bg = heatCell(v, ref, c.inv);
+      return `<td${bg ? ` style="${bg}"` : ""}>${fmtStat(v, c.pct)}</td>`;
+    }).join("")}</tr>`
+  ).join("");
+
+  const sparkSvg = recentSparkline(games);
+
+  tabBody.innerHTML = `
+    <div class="recent-n-toggle">
+      ${[7, 15, 30].map((x) =>
+        `<button class="rnt-btn${x === n ? " active" : ""}" data-n="${x}">Last ${x}</button>`
+      ).join("")}
+    </div>
+    ${sparkSvg ? `<div class="career-spark">${sparkSvg}</div>` : ""}
+    <div class="career-table-wrap">
+      <table class="career-tbl">
+        <thead><tr>${headers}</tr></thead>
+        <tbody>${avgRow}${gameRows}</tbody>
+      </table>
+    </div>`;
+
+  tabBody.querySelectorAll(".rnt-btn").forEach((btn) =>
+    btn.addEventListener("click", () => renderRecentTab(p, allGames, tabBody, +btn.dataset.n))
+  );
+}
+
+function recentSparkline(games) {
+  if (games.length < 3) return "";
+  const W = 560, H = 100;
+  const metrics = [
+    { key: "pts", label: "PTS", color: "#ee6730" },
+    { key: "reb", label: "REB", color: "#3a6df0" },
+    { key: "ast", label: "AST", color: "#ffc24b" },
+  ];
+  const maxVal = Math.max(...metrics.flatMap((m) => games.map((g) => g[m.key] ?? 0)), 5);
+  const pad = { t: 16, r: 12, b: 24, l: 8 };
+  const w = W - pad.l - pad.r, h = H - pad.t - pad.b;
+  const x = (i) => pad.l + (games.length > 1 ? (i / (games.length - 1)) * w : w / 2);
+  const y = (v) => pad.t + h - ((v ?? 0) / maxVal) * h;
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="max-width:${W}px;display:block">`;
+  metrics.forEach(({ label, color }, i) => {
+    const lx = 12 + i * 55;
+    svg += `<line x1="${lx}" y1="8" x2="${lx + 14}" y2="8" stroke="${color}" stroke-width="2"/>`;
+    svg += `<text x="${lx + 18}" y="11" fill="rgba(255,255,255,0.55)" font-size="9" font-family="Inter,sans-serif">${label}</text>`;
+  });
+  metrics.forEach(({ key, color }) => {
+    const path = games.map((g, i) => g[key] != null ? `${i ? "L" : "M"}${x(i).toFixed(1)},${y(g[key]).toFixed(1)}` : null).filter(Boolean).join("");
+    if (!path) return;
+    svg += `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>`;
+  });
+  games.forEach((g, i) => {
+    if (games.length <= 10 || i % 3 === 0 || i === games.length - 1) {
+      svg += `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="8" font-family="Inter,sans-serif">${(g.date || "").slice(5)}</text>`;
+    }
+  });
+  return svg + "</svg>";
 }
 
 /* ---- players browse section ---- */

@@ -62,6 +62,18 @@ def get_career(player_id: str):
     return get_career_stats(player_id)
 
 
+@app.get("/api/players/{player_id}/gamelog")
+def get_gamelog(player_id: str, season: str = Query(DEFAULT_SEASON)):
+    from .data.nba_client import get_game_log
+    return get_game_log(player_id, season)
+
+
+@app.get("/api/advanced")
+def get_advanced(season: str = Query(DEFAULT_SEASON)):
+    from .data.nba_client import get_advanced_stats
+    return get_advanced_stats(season)
+
+
 @app.get("/api/players/{player_id}/best-punts")
 def get_best_punts(
     player_id: str,

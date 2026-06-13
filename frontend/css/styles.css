@@ -450,3 +450,32 @@ select { cursor:pointer; min-width:120px; }
 .career-tbl td.career-high { color:var(--gold); font-weight:700; }
 .career-tbl tr.current-season td { background:rgba(238,103,48,.06); }
 .career-tbl tr.current-season td:first-child { color:var(--orange-2); font-weight:600; }
+
+/* ===== advanced stats grid (inside Fantasy Stats tab) ===== */
+.adv-grid {
+  display:grid; grid-template-columns:repeat(6,1fr); gap:6px;
+  margin-top:16px; padding:14px 0 2px;
+  border-top:1px solid var(--panel-brd);
+}
+@media(max-width:560px) { .adv-grid { grid-template-columns:repeat(3,1fr); } }
+.adv-cell { text-align:center; background:var(--panel); border-radius:10px; padding:10px 6px; }
+.adv-lbl { display:block; font-size:.65rem; font-weight:700; letter-spacing:.5px;
+  text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+.adv-val { display:block; font-family:"Archivo"; font-size:1rem; font-weight:900; }
+
+/* ===== recent form tab ===== */
+.recent-n-toggle { display:flex; gap:6px; margin-bottom:14px; }
+.rnt-btn { padding:6px 14px; border:1px solid var(--panel-brd); border-radius:8px;
+  background:transparent; color:var(--muted); font:inherit; font-size:.82rem;
+  font-weight:600; cursor:pointer; transition:all .15s; }
+.rnt-btn:hover { color:var(--ink); border-color:rgba(255,255,255,.18); }
+.rnt-btn.active { background:#1c2233; color:var(--ink); border-color:rgba(255,255,255,.12); }
+
+/* reuse career-tbl styles; add win/loss column colouring */
+.career-tbl td.win  { color:var(--good); font-weight:700; }
+.career-tbl td.loss { color:var(--bad);  font-weight:600; }
+.career-tbl tr.recent-avg-row td {
+  background:rgba(255,194,75,.06); color:var(--gold);
+  font-weight:700; border-bottom:2px solid rgba(255,194,75,.15);
+  position:sticky; top:28px; z-index:1;
+}

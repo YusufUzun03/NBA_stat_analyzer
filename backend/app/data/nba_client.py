@@ -294,6 +294,119 @@ def _fetch_career_stats(player_id: str) -> list[dict]:
         return []
 
 
+# --- advanced stats (season page) -----------------------------------------
+
+_ADV_MAP = {
+    "per": "per", "ts_pct": "ts_pct", "usg_pct": "usg_pct",
+    "ws": "ws", "ws_per_48": "ws_per_48", "bpm": "bpm", "vorp": "vorp",
+}
+
+def _parse_advanced(html: str) -> list[dict]:
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("table", id="advanced_stats") or soup.find("table", id="advanced")
+    if table is None:
+        return []
+    players: dict[str, dict] = {}
+    body = table.find("tbody")
+    for tr in body.find_all("tr"):
+        if "thead" in (tr.get("class") or []):
+            continue
+        name_cell = tr.find(attrs={"data-stat": "name_display"}) or tr.find(attrs={"data-stat": "player"})
+        if name_cell is None:
+            continue
+        pid = name_cell.get("data-append-csv") or _slug_from_link(name_cell)
+        if not pid or pid in players:
+            continue
+        row: dict = {"id": pid}
+        for data_stat, key in _ADV_MAP.items():
+            cell = tr.find("td", {"data-stat": data_stat})
+            row[key] = _num(cell.get_text(strip=True) if cell else "")
+        players[pid] = row
+    return list(players.values())
+
+
+def _fetch_advanced_stats(season: str) -> list[dict]:
+    year = _bref_year(season)
+    html = _get_html(f"{BREF_BASE}/leagues/NBA_{year}_advanced.html")
+    return _parse_advanced(html)
+
+
+# --- player game log (individual season) -----------------------------------
+
+def _parse_game_log(html: str) -> list[dict]:
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("table", id="pgl_basic")
+    if table is None:
+        return []
+    games = []
+    body = table.find("tbody")
+    for tr in body.find_all("tr"):
+        classes = tr.get("class") or []
+        if "thead" in classes or "partial_table" in classes:
+            continue
+
+        def _t(stat: str) -> str:
+            cell = tr.find(attrs={"data-stat": stat})
+            return cell.get_text(strip=True) if cell else ""
+
+        def _f(stat: str) -> float | None:
+            v = _t(stat)
+            if not v or v == "-":
+                return None
+            try:
+                return float(v)
+            except ValueError:
+                return None
+
+        date = _t("date_game")
+        if not date or date == "Date":
+            continue
+        mp = _t("mp")
+        if not mp or ":" not in mp:  # skip DNP rows
+            continue
+        pts = _f("pts")
+        if pts is None:
+            continue
+
+        games.append({
+            "date":   date,
+            "opp":    _t("opp_id"),
+            "loc":    "home" if _t("game_location") == "" else "away",
+            "result": _t("game_result"),
+            "mp":     mp,
+            "pts":    pts,
+            "reb":    _f("trb"),
+            "ast":    _f("ast"),
+            "stl":    _f("stl"),
+            "blk":    _f("blk"),
+            "tov":    _f("tov"),
+            "fgm":    _f("fg"),
+            "fga":    _f("fga"),
+            "fg_pct": _f("fg_pct"),
+            "tpm":    _f("fg3"),
+            "ftm":    _f("ft"),
+            "fta":    _f("fta"),
+            "ft_pct": _f("ft_pct"),
+        })
+    return games
+
+
+def _fetch_game_log(player_id: str, season: str) -> list[dict]:
+    import requests as _req
+    year = _bref_year(season)
+    first_letter = player_id[0]
+    url = f"{BREF_BASE}/players/{first_letter}/{player_id}/gamelog/{year}/"
+    try:
+        html = _get_html(url)
+        return _parse_game_log(html)
+    except _req.exceptions.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            return []
+        raise
+    except Exception:
+        return []
+
+
 # --- public API -----------------------------------------------------------
 
 def get_player_stats(season: str = DEFAULT_SEASON) -> list[dict]:
@@ -308,3 +421,13 @@ def get_career_stats(player_id: str) -> list[dict]:
     """Per-season career per-game stats (cached 7 days — historical data rarely changes)."""
     ttl = 7 * 24 * 3600
     return cached(f"career_{player_id}", lambda: _fetch_career_stats(player_id), ttl=ttl)
+
+
+def get_advanced_stats(season: str = DEFAULT_SEASON) -> list[dict]:
+    return cached(f"advanced_{season}", lambda: _fetch_advanced_stats(season))
+
+
+def get_game_log(player_id: str, season: str = DEFAULT_SEASON) -> list[dict]:
+    """Per-game game log for a single season (cached 24 hours)."""
+    ttl = 24 * 3600
+    return cached(f"gamelog_{player_id}_{season}", lambda: _fetch_game_log(player_id, season), ttl=ttl)
