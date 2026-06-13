@@ -3,10 +3,10 @@
 Run from the backend/ directory:
     python scripts/gen_career.py
 
-On first run: fetches ~444 player pages (2-3 s each = ~15 min).
-Subsequent runs: instant (all data served from the disk cache).
-Partial runs can be resumed: existing output is loaded and players
-already present are skipped.
+On first run: fetches player pages at ~4s each.
+If rate-limited (429): saves progress to output file and exits cleanly.
+Re-run later — already-cached players are instant, progress resumes.
+Full run typically needs 2-3 sessions spaced an hour apart.
 """
 from __future__ import annotations
 
@@ -16,11 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-# Force UTF-8 stdout so player names with non-ASCII chars don't crash on
-# Windows terminals that default to cp1252/cp1254.
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-
-# Allow `from app.data import nba_client` when running as a script.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config import DEFAULT_SEASON, CACHE_DIR
@@ -28,32 +24,55 @@ from app.data import nba_client
 
 SEASON = DEFAULT_SEASON
 OUT = Path(__file__).parent.parent.parent / "frontend" / "data" / f"career-{SEASON}.json"
-THROTTLE = 3.5   # seconds between non-cached HTTP requests
+THROTTLE = 4.0   # seconds between live HTTP requests
 
 
 def _is_cached(player_id: str) -> bool:
     p = CACHE_DIR / f"career_{player_id}.json"
-    return p.exists()
+    if not p.exists():
+        return False
+    try:
+        blob = json.loads(p.read_text(encoding="utf-8"))
+        return bool(blob.get("data"))   # only count non-empty cache hits
+    except Exception:
+        return False
+
+
+def _flush(career_data: dict, total_players: int) -> None:
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    # Only write players that have actual data (>0 seasons)
+    good = {k: v for k, v in career_data.items() if v}
+    OUT.write_text(
+        json.dumps({"season": SEASON, "players": good},
+                   ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    size_kb = OUT.stat().st_size / 1024
+    print(f"\nSaved {len(good)}/{total_players} players ({size_kb:.0f} KB) → {OUT}")
 
 
 def main() -> None:
     print(f"Season: {SEASON}")
     print(f"Output: {OUT}")
 
-    # Load existing output so we can resume.
+    # Load existing output so we can resume from last good flush.
+    # Only keep players that have actual season data (ignore empty [] entries
+    # from failed/rate-limited previous runs so they get retried).
     existing: dict[str, list] = {}
     if OUT.exists():
         try:
-            existing = json.loads(OUT.read_text(encoding="utf-8")).get("players", {})
+            raw = json.loads(OUT.read_text(encoding="utf-8")).get("players", {})
+            existing = {k: v for k, v in raw.items() if v}
             print(f"Resuming — {len(existing)} players already in output.")
         except (json.JSONDecodeError, OSError):
             pass
 
     players = nba_client.get_player_stats(SEASON)
-    print(f"Roster: {len(players)} players")
+    total = len(players)
+    print(f"Roster: {total} players")
 
     career_data: dict[str, list] = dict(existing)
-    total = len(players)
+    fetched = 0
 
     for i, player in enumerate(players):
         pid = player.get("id", "")
@@ -61,7 +80,7 @@ def main() -> None:
         if not pid:
             continue
         if pid in career_data:
-            continue   # already have it — skip
+            continue   # already done in a previous run
 
         cached = _is_cached(pid)
         tag = "(cached)" if cached else "        "
@@ -70,28 +89,24 @@ def main() -> None:
         try:
             career = nba_client.get_career_stats(pid)
             career_data[pid] = career
+            fetched += 1
             print(f"→ {len(career)} seasons")
         except Exception as exc:
             status = getattr(getattr(exc, "response", None), "status_code", None)
-            print(f"ERROR {status or ''}: {exc}")
-            career_data[pid] = []
-            # On 429 back off extra long before continuing
             if status == 429:
-                print("  Rate limited — sleeping 60s …", flush=True)
-                time.sleep(60)
+                print(f"RATE LIMITED — saving progress and exiting.", flush=True)
+                _flush(career_data, total)
+                print("Re-run in ~1 hour to continue.")
+                return
+            print(f"ERROR {status or ''}: {exc}")
+            # Non-429 errors (404, network): record as empty and continue
+            career_data[pid] = []
 
         if not cached:
             time.sleep(THROTTLE)
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(
-        json.dumps({"season": SEASON, "players": career_data},
-                   ensure_ascii=False, separators=(",", ":")),
-        encoding="utf-8",
-    )
-    print(f"\nWrote {len(career_data)} players to {OUT}")
-    size_kb = OUT.stat().st_size / 1024
-    print(f"File size: {size_kb:.0f} KB")
+    _flush(career_data, total)
+    print("Done!")
 
 
 if __name__ == "__main__":
