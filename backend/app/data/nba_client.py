@@ -11,6 +11,7 @@ handful of requests per cache refresh and throttle between schedule pages.
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any, Callable
 
@@ -204,69 +205,91 @@ def _fetch_schedule(season: str) -> list[dict]:
 # --- career per-game stats (individual player page) -----------------------
 
 def _parse_player_career(html: str) -> list[dict]:
-    """Parse per-season per-game stats from a basketball-reference player page."""
+    """Parse per-season NBA per-game stats from a basketball-reference player page.
+
+    The individual player page uses table id="per_game_stats" with:
+      year_id  (in a <th>) = season label
+      comp_name_abbr       = league ("NBA", "ACB", …) — we keep only NBA
+      team_name_abbr       = team (may be "2TM"/"3TM" for multi-team seasons)
+      games / mp_per_g / pts_per_g / trb_per_g / ast_per_g / stl_per_g /
+      blk_per_g / fg3_per_g / fg_pct / ft_pct / tov_per_g
+    """
     soup = BeautifulSoup(html, "lxml")
-    table = soup.find("table", id="per_game")
+    table = soup.find("table", id="per_game_stats")
     if table is None:
         return []
 
-    seasons: dict[str, dict] = {}
     body = table.find("tbody")
     if not body:
         return []
 
+    seasons: dict[str, dict] = {}
+
     for tr in body.find_all("tr"):
-        if "thead" in (tr.get("class") or []) or "partial_table" in (tr.get("class") or []):
+        classes = tr.get("class") or []
+        if "thead" in classes or "partial_table" in classes:
             continue
 
-        def cell_txt(stat: str) -> str:
-            td = tr.find(attrs={"data-stat": stat})
-            return td.get_text(strip=True) if td else ""
+        def _txt(stat: str) -> str:
+            cell = tr.find(attrs={"data-stat": stat})
+            return cell.get_text(strip=True) if cell else ""
 
-        def flt(stat: str) -> float | None:
-            v = cell_txt(stat)
-            if not v:
+        def _flt(stat: str) -> float | None:
+            v = _txt(stat)
+            if not v or v in ("", "-"):
                 return None
             try:
                 return float(v)
             except ValueError:
                 return None
 
-        season = cell_txt("season")
-        if not season or "Career" in season:
+        # Season is in a <th data-stat="year_id">
+        season_cell = tr.find(attrs={"data-stat": "year_id"})
+        season = season_cell.get_text(strip=True) if season_cell else ""
+        if not season or "Career" in season or "Season" in season:
             continue
 
-        # Keep first row per season — BR lists the multi-team aggregate before
-        # the per-team splits, so the first row is always the season total.
+        # Only NBA seasons
+        if _txt("comp_name_abbr") not in ("NBA", ""):
+            continue
+
+        # Keep first row per season (multi-team aggregate comes first in BR)
         if season in seasons:
             continue
 
         seasons[season] = {
             "season": season,
-            "age":    flt("age"),
-            "team":   cell_txt("team_id"),
-            "gp":     flt("g"),
-            "min":    flt("mp_per_g"),
-            "pts":    flt("pts_per_g"),
-            "reb":    flt("trb_per_g"),
-            "ast":    flt("ast_per_g"),
-            "stl":    flt("stl_per_g"),
-            "blk":    flt("blk_per_g"),
-            "tpm":    flt("fg3_per_g"),
-            "fg_pct": flt("fg_pct"),
-            "ft_pct": flt("ft_pct"),
-            "tov":    flt("tov_per_g"),
+            "age":    _flt("age"),
+            "team":   _txt("team_name_abbr"),
+            "gp":     _flt("games"),
+            "min":    _flt("mp_per_g"),
+            "pts":    _flt("pts_per_g"),
+            "reb":    _flt("trb_per_g"),
+            "ast":    _flt("ast_per_g"),
+            "stl":    _flt("stl_per_g"),
+            "blk":    _flt("blk_per_g"),
+            "tpm":    _flt("fg3_per_g"),
+            "fg_pct": _flt("fg_pct"),
+            "ft_pct": _flt("ft_pct"),
+            "tov":    _flt("tov_per_g"),
         }
 
     return sorted(seasons.values(), key=lambda r: r["season"])
 
 
 def _fetch_career_stats(player_id: str) -> list[dict]:
+    import requests as _req
     first_letter = player_id[0]
     url = f"{BREF_BASE}/players/{first_letter}/{player_id}.html"
     try:
         html = _get_html(url)
         return _parse_player_career(html)
+    except _req.exceptions.HTTPError as exc:
+        # 404 → player page doesn't exist; cache empty result.
+        # 429 / 5xx → transient; re-raise so cached() doesn't store the failure.
+        if exc.response is not None and exc.response.status_code == 404:
+            return []
+        raise
     except Exception:
         return []
 

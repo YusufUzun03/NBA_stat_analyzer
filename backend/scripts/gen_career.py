@@ -28,7 +28,7 @@ from app.data import nba_client
 
 SEASON = DEFAULT_SEASON
 OUT = Path(__file__).parent.parent.parent / "frontend" / "data" / f"career-{SEASON}.json"
-THROTTLE = 2.5   # seconds between non-cached HTTP requests
+THROTTLE = 3.5   # seconds between non-cached HTTP requests
 
 
 def _is_cached(player_id: str) -> bool:
@@ -72,8 +72,13 @@ def main() -> None:
             career_data[pid] = career
             print(f"→ {len(career)} seasons")
         except Exception as exc:
-            print(f"ERROR: {exc}")
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            print(f"ERROR {status or ''}: {exc}")
             career_data[pid] = []
+            # On 429 back off extra long before continuing
+            if status == 429:
+                print("  Rate limited — sleeping 60s …", flush=True)
+                time.sleep(60)
 
         if not cached:
             time.sleep(THROTTLE)
