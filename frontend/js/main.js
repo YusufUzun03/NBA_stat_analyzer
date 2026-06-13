@@ -1,5 +1,11 @@
 // HoopIQ frontend behaviour: nav, reveals, count-up, live rankings + punt toggle.
-const API = "http://127.0.0.1:8000";
+// Live API is only reachable when developing locally; a hosted (GitHub Pages)
+// page can't call http://127.0.0.1, so it runs on demo data until a public API
+// is deployed. Override the local API with ?api=https://your-api if you host one.
+const IS_LOCAL = ["localhost", "127.0.0.1", ""].includes(location.hostname);
+const API = new URLSearchParams(location.search).get("api")
+  || (IS_LOCAL ? "http://127.0.0.1:8000" : null);
+const REPO_URL = "https://github.com/YusufUzun03/NBA_stat_analyzer";
 
 const CATS = [
   ["pts", "PTS"], ["reb", "REB"], ["ast", "AST"], ["stl", "STL"], ["blk", "BLK"],
@@ -24,11 +30,25 @@ const punted = new Set();
 
 document.addEventListener("DOMContentLoaded", () => {
   initNav();
+  initApiLink();
   initReveals();
   initCounters();
   initPunts();
   loadBoard();
 });
+
+/* point the nav "API" link at local docs, or the repo when hosted */
+function initApiLink() {
+  const link = document.getElementById("api-link");
+  if (!link) return;
+  if (API) {
+    link.href = API + "/docs";
+    link.textContent = "API";
+  } else {
+    link.href = REPO_URL;
+    link.textContent = "GitHub";
+  }
+}
 
 /* nav background on scroll */
 function initNav() {
@@ -89,8 +109,16 @@ async function loadBoard() {
   const rows = document.getElementById("board-rows");
   const note = document.getElementById("board-note");
   const puntCsv = [...punted].join(",");
-  const url = `${API}/api/players?limit=10${puntCsv ? `&punt=${puntCsv}` : ""}`;
 
+  // Hosted with no public API: show demo data, no dev-only instructions.
+  if (!API) {
+    render(SAMPLE, rows);
+    note.className = "board-note";
+    note.textContent = "Demo data · run the backend locally for live, punt-aware rankings.";
+    return;
+  }
+
+  const url = `${API}/api/players?limit=10${puntCsv ? `&punt=${puntCsv}` : ""}`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(res.status);
