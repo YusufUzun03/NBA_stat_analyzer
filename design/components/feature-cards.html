@@ -1,0 +1,22 @@
+<!-- @dsCard group="Components" name="Feature cards" subtitle="The four tools" width=720 height=300 -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; font-family:"Inter",system-ui,sans-serif;
+    background:radial-gradient(900px 500px at 80% -10%,#161c30,#0a0c14 55%); color:#f4f6fb; padding:24px; }
+  .cards { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; max-width:680px; margin:0 auto; }
+  .card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:22px; }
+  .ic { font-size:1.6rem; width:48px; height:48px; display:grid; place-items:center; border-radius:12px;
+    background:rgba(255,255,255,.05); margin-bottom:12px; }
+  h3 { margin:0 0 6px; font-size:1.08rem; }
+  p { margin:0; color:#9aa3b8; font-size:.9rem; }
+</style></head>
+<body>
+  <div class="cards">
+    <div class="card"><div class="ic">📊</div><h3>Z-Score Rankings</h3><p>Volume-weighted FG%/FT%, inverted turnovers, configurable pool.</p></div>
+    <div class="card"><div class="ic">🎯</div><h3>Punt Analyzer</h3><p>Drop categories and re-rank every player live for your build.</p></div>
+    <div class="card"><div class="ic">🔁</div><h3>Trade Analyzer</h3><p>Category-by-category comparison with an instant letter grade.</p></div>
+    <div class="card"><div class="ic">🗓️</div><h3>Schedule & Streaming</h3><p>Games-per-week, back-to-backs and best streaming targets.</p></div>
+  </div>
+</body></html>

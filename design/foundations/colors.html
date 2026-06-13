@@ -1,0 +1,31 @@
+<!-- @dsCard group="Foundations" name="Color tokens" subtitle="Brand, surfaces, status" width=620 height=380 -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" />
+<style>
+  body { margin:0; font-family:"Inter",system-ui,sans-serif;
+    background:radial-gradient(900px 500px at 80% -10%,#161c30,#0a0c14 55%); color:#f4f6fb; padding:28px; }
+  h2 { font-family:"Archivo","Arial Black",sans-serif; margin:0 0 18px; letter-spacing:-.5px; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .sw { border-radius:14px; border:1px solid rgba(255,255,255,.08); overflow:hidden; background:rgba(255,255,255,.04); }
+  .chip { height:74px; }
+  .meta { padding:10px 12px; font-size:.78rem; }
+  .meta b { display:block; font-size:.84rem; }
+  .meta span { color:#9aa3b8; }
+</style></head>
+<body>
+  <h2>Color tokens</h2>
+  <div class="grid">
+    <div class="sw"><div class="chip" style="background:#ee6730"></div><div class="meta"><b>Orange</b><span>#ee6730</span></div></div>
+    <div class="sw"><div class="chip" style="background:#ff8a4c"></div><div class="meta"><b>Orange 2</b><span>#ff8a4c</span></div></div>
+    <div class="sw"><div class="chip" style="background:#ffc24b"></div><div class="meta"><b>Gold</b><span>#ffc24b</span></div></div>
+    <div class="sw"><div class="chip" style="background:#c98a3c"></div><div class="meta"><b>Court</b><span>#c98a3c</span></div></div>
+    <div class="sw"><div class="chip" style="background:#0a0c14"></div><div class="meta"><b>BG</b><span>#0a0c14</span></div></div>
+    <div class="sw"><div class="chip" style="background:#0f1320"></div><div class="meta"><b>BG 2</b><span>#0f1320</span></div></div>
+    <div class="sw"><div class="chip" style="background:#f4f6fb"></div><div class="meta"><b>Ink</b><span>#f4f6fb</span></div></div>
+    <div class="sw"><div class="chip" style="background:#9aa3b8"></div><div class="meta"><b>Muted</b><span>#9aa3b8</span></div></div>
+    <div class="sw"><div class="chip" style="background:#44d07b"></div><div class="meta"><b>Good</b><span>#44d07b</span></div></div>
+    <div class="sw"><div class="chip" style="background:#ff5c6c"></div><div class="meta"><b>Bad</b><span>#ff5c6c</span></div></div>
+    <div class="sw"><div class="chip" style="background:#3a6df0"></div><div class="meta"><b>Accent</b><span>#3a6df0</span></div></div>
+    <div class="sw"><div class="chip" style="background:linear-gradient(135deg,#ee6730,#ffc24b)"></div><div class="meta"><b>Brand grad</b><span>orange→gold</span></div></div>
+  </div>
+</body></html>

@@ -1,0 +1,27 @@
+<!-- @dsCard group="Components" name="Punt chips" subtitle="Toggle categories to punt" width=560 height=240 -->
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; font-family:"Inter",system-ui,sans-serif;
+    background:radial-gradient(900px 500px at 80% -10%,#161c30,#0a0c14 55%); color:#f4f6fb;
+    display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  .punts { display:flex; flex-wrap:wrap; gap:9px; max-width:460px; }
+  .chip { padding:8px 15px; border-radius:999px; border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04); color:#9aa3b8; font-weight:600; font-size:.85rem; cursor:pointer; }
+  .chip.active { background:linear-gradient(135deg,#ee6730,#ff8a4c); color:#1a0e07; border-color:transparent;
+    box-shadow:0 6px 18px rgba(238,103,48,.35); }
+</style></head>
+<body>
+  <div class="punts">
+    <button class="chip">Punt PTS</button>
+    <button class="chip">Punt REB</button>
+    <button class="chip active">Punt AST</button>
+    <button class="chip">Punt STL</button>
+    <button class="chip">Punt BLK</button>
+    <button class="chip">Punt 3PM</button>
+    <button class="chip active">Punt FG%</button>
+    <button class="chip active">Punt FT%</button>
+    <button class="chip">Punt TOV</button>
+  </div>
+</body></html>
