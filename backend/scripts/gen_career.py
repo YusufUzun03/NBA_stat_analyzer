@@ -102,6 +102,10 @@ def main() -> None:
             # Non-429 errors (404, network): record as empty and continue
             career_data[pid] = []
 
+        # Periodic flush so a long background run never loses progress.
+        if fetched and fetched % 20 == 0:
+            _flush(career_data, total)
+
         if not cached:
             time.sleep(THROTTLE)
 

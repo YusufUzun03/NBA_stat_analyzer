@@ -123,6 +123,10 @@ def main() -> None:
             print(f"ERROR {status or ''}: {exc}")
             data[pid] = []
 
+        # Periodic flush so a long background run never loses progress.
+        if fetched and fetched % 20 == 0:
+            _flush(data, total)
+
         if not cached:
             time.sleep(THROTTLE)
 
