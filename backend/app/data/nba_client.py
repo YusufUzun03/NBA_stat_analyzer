@@ -335,7 +335,11 @@ def _fetch_advanced_stats(season: str) -> list[dict]:
 
 def _parse_game_log(html: str) -> list[dict]:
     soup = BeautifulSoup(html, "lxml")
-    table = soup.find("table", id="pgl_basic")
+    # BR renamed the regular-season game-log table from "pgl_basic" to
+    # "player_game_log_reg" (and the date/opponent columns). Try the new id
+    # first, fall back to the legacy one for older cached pages.
+    table = (soup.find("table", id="player_game_log_reg")
+             or soup.find("table", id="pgl_basic"))
     if table is None:
         return []
     games = []
@@ -349,6 +353,14 @@ def _parse_game_log(html: str) -> list[dict]:
             cell = tr.find(attrs={"data-stat": stat})
             return cell.get_text(strip=True) if cell else ""
 
+        def _first(*stats: str) -> str:
+            """First non-empty value across renamed column variants."""
+            for s in stats:
+                v = _t(s)
+                if v:
+                    return v
+            return ""
+
         def _f(stat: str) -> float | None:
             v = _t(stat)
             if not v or v == "-":
@@ -358,7 +370,7 @@ def _parse_game_log(html: str) -> list[dict]:
             except ValueError:
                 return None
 
-        date = _t("date_game")
+        date = _first("date", "date_game")
         if not date or date == "Date":
             continue
         mp = _t("mp")
@@ -370,9 +382,9 @@ def _parse_game_log(html: str) -> list[dict]:
 
         games.append({
             "date":   date,
-            "opp":    _t("opp_id"),
-            "loc":    "home" if _t("game_location") == "" else "away",
-            "result": _t("game_result"),
+            "opp":    _first("opp_name_abbr", "opp_id"),
+            "loc":    "away" if _t("game_location") == "@" else "home",
+            "result": _first("game_result"),
             "mp":     mp,
             "pts":    pts,
             "reb":    _f("trb"),

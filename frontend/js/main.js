@@ -963,9 +963,20 @@ function buildCareerTable(seasons) {
     { h:"FT%",    k:"ft_pct",  fmt:(v)=>v!=null?(v*100).toFixed(1)+"%":"—" },
     { h:"TOV",    k:"tov",     fmt:(v)=>v!=null?(+v).toFixed(1):"—" },
   ];
-  const highs = {};
-  for (const c of cols.filter((c) => c.hi))
-    highs[c.k] = Math.max(...seasons.map((s) => s[c.k] ?? 0));
+  // per-column career min/max → drives both the "career high" mark and a
+  // green heat tint so a player's peak/valley seasons pop visually.
+  const highs = {}, lows = {};
+  for (const c of cols.filter((c) => c.hi)) {
+    const vals = seasons.map((s) => s[c.k]).filter((v) => v != null);
+    highs[c.k] = vals.length ? Math.max(...vals) : 0;
+    lows[c.k]  = vals.length ? Math.min(...vals) : 0;
+  }
+  const careerHeat = (k, v) => {
+    const hi = highs[k], lo = lows[k];
+    if (v == null || hi === lo) return "";
+    const t = (v - lo) / (hi - lo);           // 0..1 within this player's range
+    return `background:rgba(68,208,123,${(0.06 + 0.42 * t).toFixed(3)})`;
+  };
   const curSeasons = new Set(["2024-25", "2025-26"]);
   const headers = cols.map((c) => `<th${c.lft?' class="cat-lbl"':""}>${c.h}</th>`).join("");
   const rows = seasons.map((s) => {
@@ -973,7 +984,9 @@ function buildCareerTable(seasons) {
     const cells = cols.map((c) => {
       const v = s[c.k];
       const isHigh = c.hi && highs[c.k] && v != null && +v === highs[c.k] && highs[c.k] > 0;
-      return `<td${c.lft?' class="cat-lbl"':isHigh?' class="career-high"':""}>${c.fmt(v)}</td>`;
+      const bg = c.hi && !isHigh ? careerHeat(c.k, v) : "";
+      const cls = c.lft ? "cat-lbl" : isHigh ? "career-high" : "";
+      return `<td${cls ? ` class="${cls}"` : ""}${bg ? ` style="${bg}"` : ""}>${c.fmt(v)}</td>`;
     }).join("");
     return `<tr${cur?' class="current-season"':""}>${cells}</tr>`;
   }).join("");
@@ -982,25 +995,46 @@ function buildCareerTable(seasons) {
 
 /* ---- recent form (game log) ---- */
 const recentCache = {};
+// Bundled game-log snapshot (dict keyed by player id), used when no live API
+// is reachable. Generated offline by scripts/gen_gamelog.py and served as a
+// static data file so the page never scrapes or recomputes at runtime.
+let gamelogSnapshot = null;
+
+async function loadGamelogSnapshot() {
+  if (gamelogSnapshot !== null) return;
+  try {
+    const r = await fetch(`data/gamelog-${state.season}.json`);
+    if (r.ok) { const j = await r.json(); gamelogSnapshot = j.players || {}; }
+    else gamelogSnapshot = {};
+  } catch { gamelogSnapshot = {}; }
+}
+
+async function loadGamelog(playerId) {
+  if (recentCache[playerId]) return recentCache[playerId];
+  if (API) {
+    try {
+      const r = await fetch(`${API}/api/players/${playerId}/gamelog?season=${state.season}`,
+        { signal: AbortSignal.timeout(20000) });
+      if (r.ok) { recentCache[playerId] = await r.json(); return recentCache[playerId]; }
+    } catch {}
+  }
+  if (gamelogSnapshot === null) await loadGamelogSnapshot();
+  const games = (gamelogSnapshot || {})[playerId] || [];
+  recentCache[playerId] = games;
+  return games;
+}
 
 async function loadAndShowRecent(p, tabBody) {
   tabBody.innerHTML = '<div class="career-loading">Loading recent games…</div>';
-  if (!API) {
-    tabBody.innerHTML = `<div class="career-empty">Recent Form requires the local API server.<br><small>Start it with: <code>uvicorn app.main:app</code></small></div>`;
-    return;
-  }
   try {
-    if (!recentCache[p.id]) {
-      const r = await fetch(`${API}/api/players/${p.id}/gamelog?season=${state.season}`, { signal: AbortSignal.timeout(20000) });
-      if (!r.ok) throw new Error(r.status);
-      recentCache[p.id] = await r.json();
-    }
-    const games = recentCache[p.id];
+    const games = await loadGamelog(p.id);
     if (!games.length) {
-      tabBody.innerHTML = `<div class="career-empty">No game log available for ${esc(p.name)} this season.</div>`;
+      tabBody.innerHTML = API
+        ? `<div class="career-empty">No game log available for ${esc(p.name)} this season.</div>`
+        : `<div class="career-empty">Recent games aren't in the bundled snapshot for ${esc(p.name)}.<br><small>Generate it locally: <code>python scripts/gen_gamelog.py</code></small></div>`;
       return;
     }
-    renderRecentTab(p, games, tabBody, 15);
+    renderRecentTab(p, games, tabBody, 5);
   } catch (err) {
     tabBody.innerHTML = `<div class="career-empty">Couldn't load game log.<br><small>${esc(String(err))}</small></div>`;
   }
@@ -1072,13 +1106,15 @@ function renderRecentTab(p, allGames, tabBody, n) {
   ).join("");
 
   const sparkSvg = recentSparkline(games);
+  const splits = splitsCard(avgStats, seasonAvg, n);
 
   tabBody.innerHTML = `
     <div class="recent-n-toggle">
-      ${[7, 15, 30].map((x) =>
+      ${[5, 7, 15, 30].map((x) =>
         `<button class="rnt-btn${x === n ? " active" : ""}" data-n="${x}">Last ${x}</button>`
       ).join("")}
     </div>
+    ${splits}
     ${sparkSvg ? `<div class="career-spark">${sparkSvg}</div>` : ""}
     <div class="career-table-wrap">
       <table class="career-tbl">
@@ -1090,6 +1126,37 @@ function renderRecentTab(p, allGames, tabBody, n) {
   tabBody.querySelectorAll(".rnt-btn").forEach((btn) =>
     btn.addEventListener("click", () => renderRecentTab(p, allGames, tabBody, +btn.dataset.n))
   );
+}
+
+/* Last-N vs season splits — one chip per category with delta + heat. */
+function splitsCard(avgStats, seasonAvg, n) {
+  const items = [
+    { k: "pts", l: "PTS" }, { k: "reb", l: "REB" }, { k: "ast", l: "AST" },
+    { k: "stl", l: "STL" }, { k: "blk", l: "BLK" }, { k: "tpm", l: "3PM" },
+    { k: "fg_pct", l: "FG%", pct: true }, { k: "ft_pct", l: "FT%", pct: true },
+    { k: "tov", l: "TOV", inv: true },
+  ];
+  const fmt = (v, pct) => v == null ? "—" : pct ? (v * 100).toFixed(1) + "%" : (+v).toFixed(1);
+  const chips = items.map(({ k, l, pct, inv }) => {
+    const cur = avgStats[k], ref = seasonAvg[k];
+    let cls = "flat", arrow = "→", deltaTxt = "";
+    if (cur != null && ref != null && ref !== 0) {
+      const diff = cur - ref;
+      const rel = diff / Math.abs(ref);
+      const better = inv ? rel < -0.05 : rel > 0.05;
+      const worse = inv ? rel > 0.05 : rel < -0.05;
+      cls = better ? "up" : worse ? "down" : "flat";
+      arrow = better ? "▲" : worse ? "▼" : "→";
+      deltaTxt = (diff >= 0 ? "+" : "") + (pct ? (diff * 100).toFixed(1) : diff.toFixed(1));
+    }
+    return `<div class="split-chip split-${cls}">
+      <span class="sc-cat">${l}</span>
+      <span class="sc-val">${fmt(cur, pct)}</span>
+      <span class="sc-delta">${arrow} ${deltaTxt}</span>
+    </div>`;
+  }).join("");
+  return `<div class="splits-head">Last ${n} vs season average</div>
+    <div class="splits-grid">${chips}</div>`;
 }
 
 function recentSparkline(games) {
