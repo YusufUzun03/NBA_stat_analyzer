@@ -9,13 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
-    }
-  }
-  </script>
 </head>
 <body>
   <!-- animated court-glow background -->
@@ -72,7 +65,15 @@
     </div>
 
     <div class="hero-ball">
-      <div id="ball-canvas" class="ball-canvas"></div>
+      <!-- Pure-CSS basketball: spins via a single compositor transform
+           (no WebGL, no per-frame JS) so it's animated yet jank-free. -->
+      <div class="bball" aria-hidden="true">
+        <div class="bball-skin"></div>
+        <div class="bball-equator"></div>
+        <div class="bball-arc bball-arc-l"></div>
+        <div class="bball-arc bball-arc-r"></div>
+        <div class="bball-sphere"></div>
+      </div>
       <div class="ball-shadow"></div>
     </div>
   </section>
@@ -260,7 +261,6 @@
   <!-- ===================== COMPARE TRAY ===================== -->
   <div id="compare-tray" class="compare-tray" aria-live="polite"></div>
 
-  <script type="module" src="js/basketball.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
