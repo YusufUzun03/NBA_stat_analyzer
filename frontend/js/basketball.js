@@ -30,8 +30,10 @@ function drawSeams(ctx, W, H, width) {
 function initBall(mount) {
   const size = () => Math.min(mount.clientWidth || 480, mount.clientHeight || 480);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Cap pixel ratio hard — at DPR 2 we'd shade 4x the pixels for no visible
+  // gain on a slowly-spinning ball. 1.5 is the sweet spot for integrated GPUs.
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(size(), size());
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -59,20 +61,20 @@ function initBall(mount) {
   scene.add(new THREE.AmbientLight(0xffe6d6, 0.42));
 
   // — ball material: matte leather with grooved seams —
+  // Flat roughness (no roughnessMap) + bump only → one fewer texture sample
+  // per pixel with no visible difference on a matte ball.
   const colorTex = makeColorTexture();
   const bumpTex  = makeBumpTexture();
-  const roughTex = makeRoughnessTexture();
 
   const material = new THREE.MeshStandardMaterial({
     map:             colorTex,
     bumpMap:         bumpTex,
     bumpScale:       0.05,
-    roughnessMap:    roughTex,
-    roughness:       0.95,
+    roughness:       0.9,
     metalness:       0.0,
   });
 
-  const ball = new THREE.Mesh(new THREE.SphereGeometry(2, 96, 64), material);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(2, 64, 48), material);
   ball.rotation.z = 0.16;
   scene.add(ball);
 
@@ -108,22 +110,28 @@ function initBall(mount) {
     sync();
   });
 
+  // Throttle to ~30fps: a slow spin reads identically at 30 vs 60fps but costs
+  // half the GPU work — the difference between "smooth" and "janky" on weak HW.
+  const FRAME_MS = 1000 / 30;
   let t = 0;
-  function frame() {
+  let lastDraw = 0;
+  function frame(now) {
     if (!running()) { rafId = null; return; }   // stop the loop entirely
     rafId = requestAnimationFrame(frame);
-    t += 0.016;
+    if (now - lastDraw < FRAME_MS) return;       // skip frames over 30fps
+    lastDraw = now;
+    t += 0.033;
 
-    ball.rotation.y += 0.005;
+    ball.rotation.y += 0.010;
     ball.position.y  = Math.sin(t * 0.9) * 0.12;
 
-    smooth.x += (target.x  - smooth.x) * 0.045;
-    smooth.y += (-target.y - smooth.y) * 0.045;
+    smooth.x += (target.x  - smooth.x) * 0.08;
+    smooth.y += (-target.y - smooth.y) * 0.08;
     camera.position.x = smooth.x;
     camera.position.y = smooth.y;
     camera.lookAt(0, ball.position.y * 0.25, 0);
 
-    particles.rotation.y += 0.0022;
+    particles.rotation.y += 0.0045;
     particles.rotation.x  = Math.sin(t * 0.35) * 0.05;
 
     renderer.render(scene, camera);
@@ -132,7 +140,7 @@ function initBall(mount) {
   function sync() {
     if (running()) {
       window.addEventListener("pointermove", onPointerMove, { passive: true });
-      if (rafId == null) frame();              // resume
+      if (rafId == null) rafId = requestAnimationFrame(frame);   // resume
     } else {
       window.removeEventListener("pointermove", onPointerMove);
       if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
@@ -214,23 +222,6 @@ function makeBumpTexture() {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 8;
-  return t;
-}
-
-/* ---- roughness: seams slightly glossier than matte leather ---- */
-function makeRoughnessTexture() {
-  const W = 1024, H = 512;
-  const c = document.createElement("canvas");
-  c.width = W; c.height = H;
-  const ctx = c.getContext("2d");
-
-  // bright = rough (matte leather), darker on seams = a touch shinier
-  ctx.fillStyle = "#e6e6e6";
-  ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "#9a9a9a";
-  drawSeams(ctx, W, H, H * 0.02);
-
-  const t = new THREE.CanvasTexture(c);
   return t;
 }
 
