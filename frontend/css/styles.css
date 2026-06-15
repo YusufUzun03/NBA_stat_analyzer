@@ -583,15 +583,48 @@ select { cursor:pointer; min-width:120px; }
 .ct-go { margin-left:auto; }
 @media (max-width:620px) { .ct-go { margin-left:0; } }
 
+/* ===== watchlist (stars) ===== */
+.star-btn {
+  background: none; border: none; cursor: pointer; padding: 0 4px 0 0;
+  color: var(--muted); font-size: 1.02rem; line-height: 1;
+  transition: color 0.15s, transform 0.12s;
+}
+.star-btn:hover { color: var(--gold); transform: scale(1.18); }
+.star-btn.on { color: var(--gold); }
+/* board name cell: star + clickable name */
+.rank-table td.c-name { white-space: nowrap; }
+.rank-table .c-name .pname { font-weight: 600; }
+.rank-table .c-name .pname:hover { color: var(--orange); }
+/* player-card star, pinned top-right */
+.pc-star {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  font-size: 1.15rem; padding: 2px;
+}
+/* the watchlist filter chip */
+.star-chip { margin-left: 6px; }
+.star-chip.active {
+  background: rgba(255, 194, 75, 0.16);
+  border-color: rgba(255, 194, 75, 0.6);
+  color: var(--gold);
+}
+.star-chip.nudge { animation: star-nudge 0.4s ease; }
+@keyframes star-nudge {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.modal-star-btn.in-cmp { border-color: var(--gold); color: var(--gold); }
+
 /* ===== players browse section ===== */
 .player-search-wrap { margin:28px 0 24px; }
 .player-search-wrap input[type="search"] {
   width:100%; max-width:500px; font-size:1.05rem;
   padding:14px 18px; border-radius:14px; }
 .player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
-.player-card { background:var(--panel); border:1px solid var(--panel-brd); border-radius:16px;
+.player-card { position:relative; background:var(--panel); border:1px solid var(--panel-brd); border-radius:16px;
   padding:18px 16px; cursor:pointer; transition:transform .2s, border-color .2s, background .2s;
   display:flex; flex-direction:column; gap:10px; }
+.player-card .pc-name { padding-right:22px; }
 .player-card:hover { transform:translateY(-5px); border-color:rgba(238,103,48,.45); background:rgba(238,103,48,.05); }
 .pc-top { display:flex; align-items:center; gap:12px; }
 .pc-avatar { width:46px; height:46px; border-radius:50%; display:flex; align-items:center;

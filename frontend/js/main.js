@@ -28,6 +28,31 @@ const DEFAULTS = { season: "2025-26", pool: 156, minMin: 12, punts: [],
 let state = loadState();
 let rawPlayers = [];   // current fetched set (full z, no punt applied)
 
+/* ---------- watchlist (starred players) ---------- */
+const WATCH_KEY = "hoopiq_watchlist";
+let watchlist = loadWatchlist();   // Set of player ids
+let starredOnly = false;           // board filter toggle (transient)
+function loadWatchlist() {
+  try { return new Set(JSON.parse(localStorage.getItem(WATCH_KEY) || "[]")); }
+  catch { return new Set(); }
+}
+function saveWatchlist() { localStorage.setItem(WATCH_KEY, JSON.stringify([...watchlist])); }
+const isStarred = (id) => watchlist.has(id);
+function toggleStar(id) {
+  watchlist.has(id) ? watchlist.delete(id) : watchlist.add(id);
+  saveWatchlist();
+  if (starredOnly && !watchlist.size) starredOnly = false;  // nothing left to show
+  render();
+  renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
+  syncStarChip();
+}
+function syncStarChip() {
+  const chip = document.getElementById("starChip");
+  if (!chip) return;
+  chip.classList.toggle("active", starredOnly);
+  chip.textContent = `★ Starred (${watchlist.size})`;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   initNav();
   initApiLink();
@@ -123,6 +148,20 @@ function initControls() {
     });
     posWrap.appendChild(b);
   });
+
+  // watchlist filter chip (toggles "starred only")
+  const starChip = document.createElement("button");
+  starChip.id = "starChip";
+  starChip.className = "pos-chip star-chip";
+  starChip.textContent = `★ Starred (${watchlist.size})`;
+  starChip.title = "Show only starred players";
+  starChip.addEventListener("click", () => {
+    if (!watchlist.size) { starChip.classList.add("nudge"); setTimeout(() => starChip.classList.remove("nudge"), 400); return; }
+    starredOnly = !starredOnly;
+    render();
+    syncStarChip();
+  });
+  posWrap.appendChild(starChip);
 
   // punt chips
   const puntWrap = document.getElementById("punts");
@@ -237,6 +276,7 @@ function computeBoard() {
 function applyFilters(board) {
   const q = norm(state.search);
   return board.filter((p) => {
+    if (starredOnly && !watchlist.has(p.id)) return false;
     if (state.team !== "ALL" && p.team !== state.team) return false;
     if (state.pos !== "ALL" && !(p.pos || "").toUpperCase().includes(state.pos)) return false;
     if (q && !norm(p.name).includes(q) && !norm(p.team).includes(q)) return false;
@@ -319,7 +359,7 @@ function rowEl(p) {
   const inCmp = compareList.includes(p.id);
   tr.innerHTML =
     `<td class="l c-rk">${p.rank}${tierDot(p.total)}</td>` +
-    `<td class="l c-name" data-id="${esc(p.id)}" style="cursor:pointer" title="View details">${esc(p.name)}</td>` +
+    `<td class="l c-name"><button class="star-btn${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button><span class="pname" data-id="${esc(p.id)}" style="cursor:pointer" title="View details">${esc(p.name)}</span></td>` +
     `<td class="l c-pos">${esc(p.pos || "")}</td>` +
     `<td class="l c-team">${esc(p.team || "")}</td>` +
     `<td class="c-gp">${p.gp ?? "—"}</td>` +
@@ -390,7 +430,9 @@ function initTools() {
   initSchedule();
   // Phase 3: event delegation for player modal + compare buttons
   document.getElementById("rankTable").addEventListener("click", (e) => {
-    const nameCell = e.target.closest("td.c-name[data-id]");
+    const starBtn = e.target.closest(".star-btn[data-star]");
+    if (starBtn) { toggleStar(starBtn.dataset.star); return; }
+    const nameCell = e.target.closest(".pname[data-id]");
     if (nameCell) { const p = getPlayer(nameCell.dataset.id); if (p) { openModal(p); return; } }
     const cmpBtn = e.target.closest(".cmp-btn[data-id]");
     if (cmpBtn) toggleCompare(cmpBtn.dataset.id);
@@ -680,6 +722,16 @@ function openModal(p) {
       btn.classList.toggle("in-cmp", inCmp);
     }
   });
+  // Watchlist (star) button
+  content.querySelector(".modal-star-btn")?.addEventListener("click", () => {
+    toggleStar(p.id);
+    const btn = content.querySelector(".modal-star-btn");
+    if (btn) {
+      const on = isStarred(p.id);
+      btn.textContent = on ? "★ Starred" : "☆ Add to watchlist";
+      btn.classList.toggle("in-cmp", on);
+    }
+  });
   overlay.classList.add("open");
   overlay.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
@@ -710,6 +762,7 @@ function buildModalHTML(p) {
     </div>
     <div id="modal-tab-body">${buildStatsTabHTML(p)}</div>
     <div class="modal-actions">
+      <button class="btn btn-ghost modal-star-btn${isStarred(p.id) ? " in-cmp" : ""}">${isStarred(p.id) ? "★ Starred" : "☆ Add to watchlist"}</button>
       <button class="btn btn-ghost modal-cmp-btn${inCmp ? " in-cmp" : ""}">${inCmp ? "✓ In comparison" : "⊕ Add to compare"}</button>
     </div>`;
 }
@@ -1224,6 +1277,7 @@ function renderPlayerGrid(query) {
     const reb = p.stats?.reb != null ? (+p.stats.reb).toFixed(1) : "—";
     const ast = p.stats?.ast != null ? (+p.stats.ast).toFixed(1) : "—";
     return `<div class="player-card" data-id="${esc(p.id)}">
+      <button class="star-btn pc-star${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button>
       <div class="pc-top">
         <div class="pc-avatar" style="background:${col}">${ini}</div>
         <div class="pc-info">
@@ -1244,7 +1298,11 @@ function renderPlayerGrid(query) {
     : "";
   grid.innerHTML = cards + more;
   grid.querySelectorAll(".player-card[data-id]").forEach((el) =>
-    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+    el.addEventListener("click", (e) => {
+      const star = e.target.closest(".star-btn[data-star]");
+      if (star) { e.stopPropagation(); toggleStar(star.dataset.star); return; }
+      const p = getPlayer(el.dataset.id); if (p) openModal(p);
+    }));
   grid.querySelector("#players-load-more")?.addEventListener("click", () => {
     playersShown += PLAYERS_PAGE_SIZE;
     renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
