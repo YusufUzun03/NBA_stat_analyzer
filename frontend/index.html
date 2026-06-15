@@ -65,14 +65,14 @@
     </div>
 
     <div class="hero-ball">
-      <!-- Pure-CSS basketball: spins via a single compositor transform
-           (no WebGL, no per-frame JS) so it's animated yet jank-free. -->
+      <!-- Pure-CSS basketball: clean fixed seams + a gentle float (one cheap
+           transform). No WebGL, no per-frame JS, no blur filters → jank-free. -->
       <div class="bball" aria-hidden="true">
-        <div class="bball-skin"></div>
-        <div class="bball-equator"></div>
-        <div class="bball-arc bball-arc-l"></div>
-        <div class="bball-arc bball-arc-r"></div>
-        <div class="bball-sphere"></div>
+        <span class="bball-seam-v"></span>
+        <span class="bball-equator"></span>
+        <span class="bball-arc bball-arc-l"></span>
+        <span class="bball-arc bball-arc-r"></span>
+        <span class="bball-sphere"></span>
       </div>
       <div class="ball-shadow"></div>
     </div>

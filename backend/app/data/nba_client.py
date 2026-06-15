@@ -64,6 +64,10 @@ def cached(key: str, fetch: Callable[[], Any], ttl: int = CACHE_TTL_SECONDS) -> 
 def _get_html(url: str) -> str:
     resp = requests.get(url, headers=_HEADERS, timeout=20)
     resp.raise_for_status()
+    # basketball-reference serves UTF-8 but often omits the charset in the
+    # header, so requests guesses Latin-1 and mangles accented names
+    # ("Jokić" -> "JokiÄ"). Force UTF-8 to keep names intact.
+    resp.encoding = "utf-8"
     return resp.text
 
 

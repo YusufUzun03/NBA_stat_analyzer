@@ -34,19 +34,21 @@ b, strong { font-weight: 800; }
    once but very expensive to re-rasterize every frame — so these no longer
    animate. The motion in the hero comes from the (GPU-cheap) 3D ball instead,
    keeping the whole page jank-free on integrated graphics. */
-.bg-orbs { position: fixed; inset: 0; z-index: 0; pointer-events: none; filter: blur(70px); }
+/* No blur() filter — soft radial gradients are glow enough and cost nothing
+   to composite. A full-viewport blur layer was a major FPS drain. */
+.bg-orbs { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 .orb { position: absolute; border-radius: 50%; }
 .orb-1 {
-  width: 560px; height: 560px; top: -160px; right: -100px; opacity: 0.45;
-  background: radial-gradient(circle, #ee6730 0%, #c94010 40%, transparent 70%);
+  width: 680px; height: 680px; top: -220px; right: -160px; opacity: 0.4;
+  background: radial-gradient(circle, rgba(238,103,48,0.9) 0%, rgba(201,64,16,0.35) 38%, transparent 68%);
 }
 .orb-2 {
-  width: 420px; height: 420px; top: 38%; left: -140px; opacity: 0.35;
-  background: radial-gradient(circle, #3a6df0 0%, #1a3aaa 40%, transparent 70%);
+  width: 540px; height: 540px; top: 34%; left: -200px; opacity: 0.32;
+  background: radial-gradient(circle, rgba(58,109,240,0.8) 0%, rgba(26,58,170,0.3) 38%, transparent 68%);
 }
 .orb-3 {
-  width: 340px; height: 340px; bottom: -100px; right: 28%; opacity: 0.30;
-  background: radial-gradient(circle, #ffc24b 0%, #d4890a 40%, transparent 70%);
+  width: 460px; height: 460px; bottom: -160px; right: 24%; opacity: 0.26;
+  background: radial-gradient(circle, rgba(255,194,75,0.8) 0%, rgba(212,137,10,0.3) 38%, transparent 68%);
 }
 
 /* ===== nav ===== */
@@ -57,8 +59,7 @@ b, strong { font-weight: 800; }
   transition: background 0.35s, backdrop-filter 0.35s, padding 0.35s, box-shadow 0.35s;
 }
 .nav.scrolled {
-  background: rgba(8, 10, 18, 0.78);
-  backdrop-filter: blur(18px);
+  background: rgba(8, 10, 18, 0.92);
   border-bottom: 1px solid rgba(255,255,255,0.07);
   box-shadow: 0 2px 30px rgba(0,0,0,0.35);
   padding-top: 13px; padding-bottom: 13px;
@@ -97,8 +98,7 @@ b, strong { font-weight: 800; }
 }
 .btn-outline {
   border-color: rgba(255,255,255,0.14); color: var(--ink);
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(8px);
+  background: rgba(255,255,255,0.06);
 }
 .btn-outline:hover { border-color: rgba(255,255,255,0.28); background: rgba(255,255,255,0.09); }
 .btn-ghost { padding: 9px 18px; border: 1px solid var(--panel-brd); color: var(--ink); }
@@ -131,7 +131,6 @@ b, strong { font-weight: 800; }
   border: 1px solid rgba(255, 194, 75, 0.28);
   border-radius: 999px;
   background: rgba(255, 194, 75, 0.07);
-  backdrop-filter: blur(6px);
   margin-bottom: 24px;
   animation: rise 0.7s ease both;
 }
@@ -173,11 +172,10 @@ b, strong { font-weight: 800; }
 }
 .hero-stat-pill {
   display: flex; flex-direction: column; align-items: flex-start;
-  background: rgba(255,255,255,0.035);
+  background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 14px; padding: 14px 20px;
   min-width: 90px;
-  backdrop-filter: blur(8px);
   transition: border-color 0.3s, background 0.3s;
 }
 .hero-stat-pill:hover {
@@ -220,69 +218,65 @@ b, strong { font-weight: 800; }
   pointer-events: none;
 }
 /* ===== pure-CSS basketball =====
-   Only ONE transform animates (the seam skin scrolling), running on the
-   compositor — no WebGL, no per-frame JS, no repaints → zero jank while
-   still reading as a spinning leather ball. */
+   Clean fixed seams + spherical shading, baked once. The only animation is a
+   gentle vertical float (a single compositor transform) — no WebGL, no
+   per-frame JS, no blur/drop-shadow filters anywhere → genuinely jank-free. */
 .bball {
   position: relative; z-index: 1;
-  width: min(440px, 80vw); aspect-ratio: 1; border-radius: 50%;
+  width: min(420px, 78vw); aspect-ratio: 1; border-radius: 50%;
   overflow: hidden;
-  background: radial-gradient(circle at 36% 30%,
-    #f59440 0%, #e06a26 32%, #c1500f 62%, #8a3207 100%);
+  background: radial-gradient(circle at 37% 30%,
+    #f49240 0%, #e06a26 34%, #bd4c0e 66%, #842f06 100%);
+  /* glow + shading via box-shadow (cheap) instead of a drop-shadow filter */
   box-shadow:
-    inset -26px -32px 64px rgba(0, 0, 0, 0.55),
-    inset 18px 20px 44px rgba(255, 195, 135, 0.32),
-    0 30px 60px rgba(0, 0, 0, 0.45);
-  filter: drop-shadow(0 0 38px rgba(238, 103, 48, 0.26));
-  animation: rise 1s ease 0.15s both;
+    inset -24px -30px 60px rgba(0, 0, 0, 0.5),
+    inset 16px 18px 40px rgba(255, 195, 135, 0.3),
+    0 24px 55px rgba(0, 0, 0, 0.45),
+    0 0 60px rgba(238, 103, 48, 0.22);
+  animation: bball-float 6s ease-in-out infinite;
+}
+@keyframes bball-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
 }
 
-/* scrolling vertical meridians = the spin (transform-only loop) */
-.bball-skin {
-  position: absolute; inset: 0; width: 200%;
-  background-image: repeating-linear-gradient(90deg,
-    transparent 0, transparent 11.5%,
-    rgba(20, 10, 4, 0.85) 12%, rgba(20, 10, 4, 0.85) 12.5%,
-    transparent 13%, transparent 25%);
-  animation: bball-roll 11s linear infinite;
-  will-change: transform;
+/* seams — all fixed, drawn with solid elements (no gradients to re-raster) */
+.bball-seam-v {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 3px;
+  transform: translateX(-50%);
+  background: #1a0d04;
 }
-@keyframes bball-roll { to { transform: translateX(-50%); } }
-
-/* fixed equator — stays put while the ball spins on its vertical axis */
 .bball-equator {
-  position: absolute; left: 0; right: 0; top: 50%; height: 2.4%;
+  position: absolute; left: 0; right: 0; top: 50%; height: 3px;
   transform: translateY(-50%);
-  background: rgba(20, 10, 4, 0.85);
+  background: #1a0d04;
 }
-
-/* two fixed curved seams (the basketball "wrap") */
+/* two curved side seams = the basketball "wrap" */
 .bball-arc {
-  position: absolute; top: -8%; bottom: -8%; width: 62%;
-  border: 4px solid rgba(20, 10, 4, 0.8);
+  position: absolute; top: -9%; bottom: -9%; width: 60%;
+  border: 3px solid #1a0d04;
   border-radius: 50%;
   background: transparent;
 }
-.bball-arc-l { left: -31%;  border-right: none; }
-.bball-arc-r { right: -31%; border-left: none; }
+.bball-arc-l { left: -30%;  border-right: none; }
+.bball-arc-r { right: -30%; border-left: none; }
 
-/* spherical shading on top — highlight + terminator shadow keep it 3D */
+/* spherical shading overlay — highlight + terminator shadow keep it 3D */
 .bball-sphere {
   position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
   background:
-    radial-gradient(circle at 35% 28%, rgba(255, 220, 185, 0.5) 0%, transparent 34%),
-    radial-gradient(circle at 70% 80%, rgba(0, 0, 0, 0.5) 0%, transparent 52%);
+    radial-gradient(circle at 36% 28%, rgba(255, 222, 188, 0.45) 0%, transparent 36%),
+    radial-gradient(circle at 70% 80%, rgba(0, 0, 0, 0.45) 0%, transparent 54%);
 }
 
 .ball-shadow {
-  position: absolute; bottom: 2%; width: 54%; height: 26px; border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(0,0,0,0.6), transparent 70%);
-  filter: blur(10px);
+  position: absolute; bottom: 2%; width: 54%; height: 24px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,0,0,0.55), transparent 72%);
   opacity: 0.5;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bball-skin { animation: none; }
+  .bball { animation: none; }
 }
 
 /* ===== sections ===== */

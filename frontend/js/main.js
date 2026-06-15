@@ -14,6 +14,10 @@ const CATS = [
 ];
 const CAT_KEYS = CATS.map((c) => c.k);
 const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
+
+// Accent-insensitive search key: "Jokić" -> "jokic", "Dončić" -> "doncic",
+// so users can find players without typing diacritics.
+const norm = (s) => String(s ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const SEASONS = API
   ? ["2025-26", "2024-25", "2023-24", "2022-23", "2021-22"]
   : ["2025-26"]; // only the bundled snapshot is available when hosted
@@ -58,7 +62,7 @@ function initCounters() {
   const run = (el) => {
     const end = +el.dataset.count; let start;
     const step = (ts) => { start ??= ts; const p = Math.min((ts - start) / 1200, 1);
-      el.textContent = Math.floor(p * end).toLocaleString(); if (p < 1) requestAnimationFrame(step); };
+      el.textContent = Math.floor(p * end).toLocaleString("en-US"); if (p < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
   };
   const io = new IntersectionObserver((es, obs) => es.forEach((e) => {
@@ -231,11 +235,11 @@ function computeBoard() {
   return board;
 }
 function applyFilters(board) {
-  const q = state.search.toLowerCase();
+  const q = norm(state.search);
   return board.filter((p) => {
     if (state.team !== "ALL" && p.team !== state.team) return false;
     if (state.pos !== "ALL" && !(p.pos || "").toUpperCase().includes(state.pos)) return false;
-    if (q && !p.name.toLowerCase().includes(q) && !(p.team || "").toLowerCase().includes(q)) return false;
+    if (q && !norm(p.name).includes(q) && !norm(p.team).includes(q)) return false;
     return true;
   });
 }
@@ -404,9 +408,9 @@ function attachAC(acEl, onPick) {
   const menu = acEl.querySelector(".ac-menu");
   const close = () => { menu.classList.remove("open"); menu.innerHTML = ""; };
   input.addEventListener("input", () => {
-    const q = input.value.trim().toLowerCase();
+    const q = norm(input.value.trim());
     if (!q) return close();
-    const hits = rawPlayers.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8);
+    const hits = rawPlayers.filter((p) => norm(p.name).includes(q)).slice(0, 8);
     if (!hits.length) return close();
     menu.innerHTML = hits.map((p) =>
       `<div class="ac-item" data-id="${esc(p.id)}"><span>${esc(p.name)}</span><span class="meta">${esc(p.team || "")} ${esc(p.pos || "")}</span></div>`).join("");
@@ -1208,9 +1212,9 @@ let playersShown = PLAYERS_PAGE_SIZE;
 function renderPlayerGrid(query) {
   const grid = document.getElementById("player-grid");
   if (!grid || !rawPlayers.length) return;
-  const q = query.toLowerCase();
+  const q = norm(query);
   const filtered = q
-    ? rawPlayers.filter((p) => p.name.toLowerCase().includes(q) || (p.team||"").toLowerCase().includes(q))
+    ? rawPlayers.filter((p) => norm(p.name).includes(q) || norm(p.team).includes(q))
     : rawPlayers;
   const shown = filtered.slice(0, playersShown);
   const cards = shown.map((p) => {
