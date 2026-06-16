@@ -60,6 +60,8 @@ function syncStarChip() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   initNav();
+  initMobileMenu();
+  initScrollSpy();
   initApiLink();
   initReveals();
   initCounters();
@@ -89,9 +91,58 @@ async function bootstrapSeasons() {
 /* ---------- nav / reveal / counters ---------- */
 function initNav() {
   const nav = document.getElementById("nav");
-  const onScroll = () => nav.classList.toggle("scrolled", window.scrollY > 30);
+  const toTop = document.getElementById("toTop");
+  const prog = document.getElementById("scrollProgress");
+  const onScroll = () => {
+    const y = window.scrollY;
+    nav.classList.toggle("scrolled", y > 30);
+    if (toTop) toTop.classList.toggle("show", y > 600);
+    if (prog) {
+      const h = document.documentElement.scrollHeight - window.innerHeight;
+      prog.style.width = `${h > 0 ? Math.min(100, (y / h) * 100) : 0}%`;
+    }
+  };
   onScroll();
   window.addEventListener("scroll", onScroll, { passive: true });
+  toTop?.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+}
+
+/* ---- mobile menu (hamburger) ---- */
+function initMobileMenu() {
+  const nav = document.getElementById("nav");
+  const toggle = document.getElementById("navToggle");
+  const links = document.querySelector(".nav-links");
+  if (!nav || !toggle) return;
+  const close = () => { nav.classList.remove("open"); toggle.setAttribute("aria-expanded", "false"); };
+  toggle.addEventListener("click", () => {
+    const open = nav.classList.toggle("open");
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  links?.addEventListener("click", (e) => { if (e.target.closest("a")) close(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+  document.addEventListener("click", (e) => {
+    if (nav.classList.contains("open") && !e.target.closest(".nav")) close();
+  });
+  window.addEventListener("resize", () => { if (window.innerWidth > 900) close(); });
+}
+
+/* ---- scroll-spy: highlight the nav link for the section in view ---- */
+function initScrollSpy() {
+  const links = [...document.querySelectorAll('.nav-links a[href^="#"]')];
+  const map = new Map();
+  links.forEach((a) => {
+    const sec = document.getElementById(a.getAttribute("href").slice(1));
+    if (sec) map.set(sec, a);
+  });
+  if (!map.size) return;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      links.forEach((l) => l.classList.remove("active"));
+      map.get(e.target)?.classList.add("active");
+    });
+  }, { rootMargin: "-45% 0px -50% 0px", threshold: 0 });
+  map.forEach((_, sec) => io.observe(sec));
 }
 function initApiLink() {
   const link = document.getElementById("api-link");

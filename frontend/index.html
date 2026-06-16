@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
+  <!-- top scroll-progress bar -->
+  <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
   <!-- animated court-glow background -->
   <div class="bg-orbs" aria-hidden="true">
     <span class="orb orb-1"></span>
@@ -35,6 +38,9 @@
       <a href="#leaders">Leaders</a>
       <a id="api-link" class="btn btn-ghost" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">API</a>
     </nav>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav">
+      <span></span><span></span><span></span>
+    </button>
   </header>
 
   <!-- ===================== HERO ===================== -->
@@ -332,6 +338,9 @@
 
   <!-- ===================== COMPARE TRAY ===================== -->
   <div id="compare-tray" class="compare-tray" aria-live="polite"></div>
+
+  <!-- back-to-top -->
+  <button class="to-top" id="toTop" aria-label="Back to top" title="Back to top">↑</button>
 
   <script type="module" src="js/main.js"></script>
 </body>
