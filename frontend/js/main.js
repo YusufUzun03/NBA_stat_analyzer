@@ -895,6 +895,7 @@ function renderPuntFit() {
 
 /* ---- schedule / streaming ---- */
 let scheduleGames = [];
+let scheduleMin = 0;   // min games filter for the schedule grid
 function initSchedule() {
   const date = document.getElementById("wk-date");
   if (!date) return;
@@ -902,6 +903,14 @@ function initSchedule() {
   document.getElementById("wk-prev").addEventListener("click", () => shiftWeek(-7));
   document.getElementById("wk-next").addEventListener("click", () => shiftWeek(7));
   date.addEventListener("change", renderSchedule);
+  const filter = document.getElementById("sched-filter");
+  filter?.addEventListener("click", (e) => {
+    const b = e.target.closest(".seg-btn[data-min]");
+    if (!b) return;
+    scheduleMin = +b.dataset.min;
+    filter.querySelectorAll(".seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+    renderSchedule();
+  });
   loadSchedule();
 }
 async function loadSchedule() {
@@ -926,13 +935,19 @@ function renderSchedule() {
   if (!grid || !scheduleGames.length) return;
   const anchor = document.getElementById("wk-date").value || "2026-01-12";
   const wk = gamesPerWeek(scheduleGames, anchor);
-  document.getElementById("wk-range").textContent = `${wk.weekStart} → ${wk.weekEnd} · ${wk.teams.length} teams playing`;
   if (!wk.teams.length) {
+    document.getElementById("wk-range").textContent = `${wk.weekStart} → ${wk.weekEnd}`;
     grid.innerHTML = '<div class="board-loading">No games this week (offseason or break).</div>'; return;
   }
-  const maxG = wk.teams[0].games;
+  const maxG = wk.teams[0].games;            // top of the full week (drives stream tag)
+  const teams = wk.teams.filter((t) => t.games >= scheduleMin);
+  const filterTxt = scheduleMin ? ` · ${teams.length} with ${scheduleMin}+ games` : ` · ${wk.teams.length} teams playing`;
+  document.getElementById("wk-range").textContent = `${wk.weekStart} → ${wk.weekEnd}${filterTxt}`;
+  if (!teams.length) {
+    grid.innerHTML = `<div class="board-loading">No team plays ${scheduleMin}+ games this week.</div>`;
+  } else {
   const DOW = ["M", "T", "W", "T", "F", "S", "S"];
-  grid.innerHTML = wk.teams.map((t) => {
+  grid.innerHTML = teams.map((t) => {
     const stream = t.games >= Math.max(4, maxG);
     const cells = wk.days.map((d, i) => {
       const g = t.opps[d];
@@ -950,6 +965,7 @@ function renderSchedule() {
       ${t.b2b ? `<div class="sc-b2b">${t.b2b} back-to-back${t.b2b > 1 ? "s" : ""}</div>` : `<div class="sc-b2b sc-norest">no back-to-backs</div>`}
     </div>`;
   }).join("");
+  }
   renderMyTeam();     // refresh the roster's weekly projection for the new week
   renderStreamers();  // streamer ranks are week-specific too
   renderMatchup();    // matchup projection is week-specific too

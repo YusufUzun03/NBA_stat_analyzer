@@ -237,6 +237,11 @@
       <button id="wk-prev" class="btn btn-ghost" type="button">◀ Prev</button>
       <input id="wk-date" type="date" />
       <button id="wk-next" class="btn btn-ghost" type="button">Next ▶</button>
+      <div class="seg" id="sched-filter" role="group" aria-label="Filter teams by games">
+        <button class="seg-btn active" data-min="0" type="button">All</button>
+        <button class="seg-btn" data-min="3" type="button">3+</button>
+        <button class="seg-btn" data-min="4" type="button">4+ games</button>
+      </div>
       <span id="wk-range" class="wk-range"></span>
     </div>
     <div class="sched-grid reveal" id="sched-grid"></div>
