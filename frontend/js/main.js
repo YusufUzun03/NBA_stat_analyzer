@@ -15,6 +15,26 @@ const CATS = [
 const CAT_KEYS = CATS.map((c) => c.k);
 const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
 
+// Team logos from ESPN's CDN, keyed by basketball-reference abbreviation
+// (a few differ from ESPN's, e.g. BRK->bkn, PHO->phx, NOP->no). Multi-team
+// rows ("2TM"/"3TM") aren't in the map, so they gracefully get no logo.
+const BR_TO_ESPN = {
+  ATL: "atl", BOS: "bos", BRK: "bkn", CHI: "chi", CHO: "cha", CLE: "cle",
+  DAL: "dal", DEN: "den", DET: "det", GSW: "gs", HOU: "hou", IND: "ind",
+  LAC: "lac", LAL: "lal", MEM: "mem", MIA: "mia", MIL: "mil", MIN: "min",
+  NOP: "no", NYK: "ny", OKC: "okc", ORL: "orl", PHI: "phi", PHO: "phx",
+  POR: "por", SAC: "sac", SAS: "sa", TOR: "tor", UTA: "utah", WAS: "wsh",
+};
+const teamLogoURL = (team) => {
+  const e = BR_TO_ESPN[String(team || "").toUpperCase()];
+  return e ? `https://a.espncdn.com/i/teamlogos/nba/500/${e}.png` : null;
+};
+// Small inline logo; onerror removes it so a missing logo just disappears.
+function teamLogo(team, cls = "") {
+  const u = teamLogoURL(team);
+  return u ? `<img class="tlogo ${cls}" src="${u}" alt="" loading="lazy" onerror="this.remove()" />` : "";
+}
+
 // Accent-insensitive search key: "Jokić" -> "jokic", "Dončić" -> "doncic",
 // so users can find players without typing diacritics.
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -392,6 +412,23 @@ function render() {
   buildHead();
   const tbody = document.querySelector("#rankTable tbody");
   tbody.innerHTML = "";
+
+  if (!rows.length) {
+    const filtered = state.search || state.team !== "ALL" || state.pos !== "ALL" || starredOnly;
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 16;
+    td.className = "board-empty";
+    td.innerHTML = `<div class="be-ic">🔍</div>
+      <p>No players match your filters.</p>
+      ${filtered ? `<button class="btn btn-ghost" id="be-clear" type="button">Clear filters</button>` : ""}`;
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    td.querySelector("#be-clear")?.addEventListener("click", clearBoardFilters);
+    setNote(`0 of ${board.length} players · filters active`);
+    return;
+  }
+
   const frag = document.createDocumentFragment();
   rows.forEach((p) => frag.appendChild(rowEl(p)));
   tbody.appendChild(frag);
@@ -399,6 +436,16 @@ function render() {
   const puntTxt = state.punts.size ? ` · punting ${[...state.punts].map((k) => k.toUpperCase()).join(", ")}` : "";
   const src = usingSnapshot ? "bundled snapshot" : "live engine";
   setNote(`${rows.length} of ${board.length} players · ${src} · ${state.season} · pool ${state.pool} · ≥${state.minMin} MPG${puntTxt}`);
+}
+
+function clearBoardFilters() {
+  state.search = ""; state.team = "ALL"; state.pos = "ALL"; starredOnly = false;
+  const s = document.getElementById("search"); if (s) s.value = "";
+  const t = document.getElementById("team"); if (t) t.value = "ALL";
+  document.querySelectorAll("#posChips .pos-chip").forEach((c) =>
+    c.classList.toggle("active", c.textContent === "ALL"));
+  syncStarChip();
+  render();
 }
 
 function buildHead() {
@@ -444,7 +491,7 @@ function rowEl(p) {
     `<td class="l c-rk">${p.rank}${tierDot(p.total)}</td>` +
     `<td class="l c-name"><button class="star-btn${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button><span class="pname" data-id="${esc(p.id)}" style="cursor:pointer" title="View details">${esc(p.name)}</span></td>` +
     `<td class="l c-pos">${esc(p.pos || "")}</td>` +
-    `<td class="l c-team">${esc(p.team || "")}</td>` +
+    `<td class="l c-team">${teamLogo(p.team)}${esc(p.team || "")}</td>` +
     `<td class="c-gp">${p.gp ?? "—"}</td>` +
     `<td class="c-total">${p.total.toFixed(2)}</td>` +
     CATS.map((c) => {
@@ -578,7 +625,7 @@ function renderStreamers() {
       ${avatarHTML(p, "pc-avatar")}
       <div class="pc-info">
         <div class="pc-name">${esc(p.name)}</div>
-        <div class="pc-meta">${esc(p.team || "—")} · ${esc(p.pos || "—")} · #${p.rank}</div>
+        <div class="pc-meta">${teamLogo(p.team)}${esc(p.team || "—")} · ${esc(p.pos || "—")} · #${p.rank}</div>
       </div>
       <div class="sg-val ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}<span>z</span></div>
     </div>`).join("");
@@ -611,7 +658,7 @@ function renderPositions() {
         <div class="pr-row">
           <span class="pr-rk">${i + 1}</span>
           <span class="pr-name" data-id="${esc(p.id)}" title="View details">${esc(p.name)}</span>
-          <span class="pr-team">${esc(p.team || "")}</span>
+          <span class="pr-team">${teamLogo(p.team)}${esc(p.team || "")}</span>
           <span class="pr-tot ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}</span>
           <span class="pr-ov" title="Overall rank">#${p.rank}</span>
         </div>`).join("")}
@@ -1034,7 +1081,7 @@ function buildModalHTML(p) {
       ${avatarHTML(p, "modal-photo")}
       <div class="modal-head-info">
         <div class="modal-name">${esc(p.name)}</div>
-        <div class="modal-meta">${esc(p.team || "—")} · ${esc(p.pos || "—")} · ${p.gp ?? "—"} GP · ${(+(p.min ?? 0)).toFixed(1)} MPG</div>
+        <div class="modal-meta">${teamLogo(p.team, "tlogo-lg")}${esc(p.team || "—")} · ${esc(p.pos || "—")} · ${p.gp ?? "—"} GP · ${(+(p.min ?? 0)).toFixed(1)} MPG</div>
         <div class="modal-tier-row">
           <span class="modal-total">#${p.rank} &nbsp;·&nbsp; <b>${p.total >= 0 ? "+" : ""}${p.total.toFixed(2)}</b> total z</span>
           <span class="tier-badge ${tier.cls}">${tier.label}</span>
@@ -1601,6 +1648,12 @@ function renderPlayerGrid(query) {
   const filtered = q
     ? rawPlayers.filter((p) => norm(p.name).includes(q) || norm(p.team).includes(q))
     : rawPlayers;
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="grid-empty"><div class="be-ic">🔍</div>
+      <p>No players match “${esc(query)}”.</p>
+      <span>Try a last name, or check the spelling.</span></div>`;
+    return;
+  }
   const shown = filtered.slice(0, playersShown);
   const cards = shown.map((p) => {
     const pts = p.stats?.pts != null ? (+p.stats.pts).toFixed(1) : "—";
@@ -1612,7 +1665,7 @@ function renderPlayerGrid(query) {
         ${avatarHTML(p, "pc-avatar")}
         <div class="pc-info">
           <div class="pc-name">${esc(p.name)}</div>
-          <div class="pc-meta">${esc(p.team||"—")} · ${esc(p.pos||"—")}</div>
+          <div class="pc-meta">${teamLogo(p.team)}${esc(p.team||"—")} · ${esc(p.pos||"—")}</div>
         </div>
       </div>
       <div class="pc-stats">
