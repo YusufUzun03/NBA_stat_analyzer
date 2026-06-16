@@ -214,6 +214,11 @@ async function load() {
   setLoadingRow();
   try {
     rawPlayers = await fetchPlayers();
+    // pool / min-minutes need the live backend; grey them out on snapshot fallback
+    if (usingSnapshot) {
+      document.getElementById("pool")?.closest(".tool")?.classList.add("disabled");
+      document.getElementById("minMin")?.closest(".tool")?.classList.add("disabled");
+    }
     populateTeams();
     render();
     refreshTools();
@@ -228,15 +233,19 @@ async function load() {
       : "Couldn't load the data snapshot.");
   }
 }
+let usingSnapshot = false;   // true when serving the bundled JSON (no live backend)
 async function fetchPlayers() {
   if (API) {
-    const u = `${API}/api/players?limit=600&season=${state.season}&pool=${state.pool}&min_minutes=${state.minMin}`;
-    const r = await fetch(u, { signal: AbortSignal.timeout(12000) });
-    if (!r.ok) throw new Error(r.status);
-    return (await r.json()).players;
+    try {
+      const u = `${API}/api/players?limit=600&season=${state.season}&pool=${state.pool}&min_minutes=${state.minMin}`;
+      const r = await fetch(u, { signal: AbortSignal.timeout(12000) });
+      if (r.ok) { usingSnapshot = false; return (await r.json()).players; }
+    } catch {}
+    // backend unreachable (e.g. static server with no uvicorn) → fall back to snapshot
   }
   const r = await fetch(`data/players-${state.season}.json`);
   if (!r.ok) throw new Error(r.status);
+  usingSnapshot = true;
   return (await r.json()).players;
 }
 
@@ -316,7 +325,7 @@ function render() {
   tbody.appendChild(frag);
 
   const puntTxt = state.punts.size ? ` · punting ${[...state.punts].map((k) => k.toUpperCase()).join(", ")}` : "";
-  const src = API ? "live engine" : "bundled snapshot";
+  const src = usingSnapshot ? "bundled snapshot" : "live engine";
   setNote(`${rows.length} of ${board.length} players · ${src} · ${state.season} · pool ${state.pool} · ≥${state.minMin} MPG${puntTxt}`);
 }
 
