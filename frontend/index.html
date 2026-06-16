@@ -67,6 +67,7 @@
       <a href="#streamers">Streamers</a>
       <a href="#matchup">Matchup</a>
       <a href="#leaders">Leaders</a>
+      <a href="#history">History</a>
       <a id="api-link" class="btn btn-ghost" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">API</a>
     </nav>
     <button class="nav-toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav">
@@ -361,6 +362,23 @@
     <p class="section-lead reveal">Top 5 players in each statistical category — raw per-game averages. Click any name for the full breakdown.</p>
     <div class="leaders-grid reveal" id="leaders-grid">
       <div class="board-loading">Loading leaders…</div>
+    </div>
+  </section>
+
+  <!-- ===================== HISTORY ===================== -->
+  <section class="section" id="history">
+    <h2 class="section-title reveal">NBA history</h2>
+    <p class="section-lead reveal">Champions, Finals MVPs and the major individual awards, season by season — straight from basketball-reference.</p>
+    <div class="hist-grid reveal">
+      <div class="hist-panel">
+        <div class="hist-h">🏆 Champions</div>
+        <div class="hist-list" id="hist-champs"><div class="board-loading">Loading…</div></div>
+      </div>
+      <div class="hist-panel">
+        <div class="hist-h">🏅 Award winners</div>
+        <div class="seg" id="hist-awards-seg" role="group" aria-label="Award"></div>
+        <div class="hist-list" id="hist-awards"></div>
+      </div>
     </div>
   </section>
 

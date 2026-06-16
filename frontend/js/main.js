@@ -102,6 +102,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initControls();
   initTools();
   initModal();
+  renderHistory();   // independent of the season/players data
   load();
 });
 
@@ -739,6 +740,49 @@ function initTools() {
   }
 }
 function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); renderTiers(); }
+
+/* ---- NBA history (champions + awards) ---- */
+let historyData = null;
+let histAwardKey = "mvp";
+let histChampsAll = false;
+async function loadHistory() {
+  if (historyData) return historyData;
+  try { const r = await fetch("data/history.json"); if (r.ok) historyData = await r.json(); } catch {}
+  return historyData;
+}
+async function renderHistory() {
+  const champsEl = document.getElementById("hist-champs");
+  const awardsEl = document.getElementById("hist-awards");
+  const seg = document.getElementById("hist-awards-seg");
+  if (!champsEl) return;
+  const h = await loadHistory();
+  if (!h) { champsEl.innerHTML = '<div class="board-loading">History unavailable.</div>'; return; }
+
+  const champs = histChampsAll ? h.champions : h.champions.slice(0, 18);
+  champsEl.innerHTML = champs.map((c) => `
+    <div class="hist-row">
+      <span class="hist-season">${esc(c.season)}</span>
+      <span class="hist-main">${teamLogo(c.champion_abbr)}<b>${esc(c.champion)}</b></span>
+      <span class="hist-sub">def. ${esc(c.runner_up)}${c.finals_mvp ? ` · FMVP ${esc(c.finals_mvp)}` : ""}</span>
+    </div>`).join("") +
+    (h.champions.length > 18 ? `<button class="btn btn-ghost hist-more" id="hist-champ-more" type="button">${histChampsAll ? "Show less" : "Show all " + h.champions.length + " seasons"}</button>` : "");
+  champsEl.querySelector("#hist-champ-more")?.addEventListener("click", () => { histChampsAll = !histChampsAll; renderHistory(); });
+
+  const keys = Object.keys(h.awards || {});
+  if (!keys.includes(histAwardKey)) histAwardKey = keys[0] || "mvp";
+  if (seg) {
+    seg.innerHTML = keys.map((k) => `<button class="seg-btn${k === histAwardKey ? " active" : ""}" data-aw="${k}" type="button">${k.toUpperCase()}</button>`).join("");
+    seg.querySelectorAll(".seg-btn").forEach((b) => b.addEventListener("click", () => { histAwardKey = b.dataset.aw; renderHistory(); }));
+  }
+  const list = (h.awards || {})[histAwardKey] || [];
+  const label = (h.award_labels || {})[histAwardKey] || histAwardKey.toUpperCase();
+  awardsEl.innerHTML = `<div class="hist-aw-label">${esc(label)}</div>` + list.map((w) => `
+    <div class="hist-row">
+      <span class="hist-season">${esc(w.season)}</span>
+      <span class="hist-main"><b>${esc(w.player)}</b></span>
+      <span class="hist-sub">${esc(w.team || "")}</span>
+    </div>`).join("");
+}
 
 /* ---- draft tiers (snake-draft cheat sheet) ---- */
 let tiersPool = 156;

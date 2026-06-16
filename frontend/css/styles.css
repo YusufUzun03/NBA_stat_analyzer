@@ -1113,3 +1113,23 @@ select { cursor:pointer; min-width:120px; }
 }
 .toast.show { opacity:1; transform:translate(-50%, 0); }
 .toast.toast-err { border-left-color:var(--bad); }
+
+/* ===== NBA history (champions + awards) ===== */
+.hist-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:30px; }
+@media (max-width:820px) { .hist-grid { grid-template-columns:1fr; } }
+.hist-panel { background:var(--panel); border:1px solid var(--panel-brd); border-radius:var(--radius); padding:18px 20px; }
+.hist-h { font-family:"Archivo"; font-weight:800; font-size:1.05rem; margin-bottom:12px; }
+#hist-awards-seg { margin-bottom:12px; flex-wrap:wrap; }
+#hist-awards-seg .seg-btn { padding:6px 10px; font-size:.74rem; }
+.hist-list { display:flex; flex-direction:column; gap:2px; max-height:440px; overflow-y:auto; }
+.hist-aw-label { font-size:.78rem; color:var(--muted); font-weight:700; margin-bottom:6px; }
+.hist-row {
+  display:grid; grid-template-columns:62px 1fr; grid-template-areas:"season main" "season sub";
+  gap:0 10px; padding:8px 4px; border-bottom:1px solid rgba(255,255,255,.04);
+}
+.hist-season { grid-area:season; font-family:"Archivo"; font-weight:700; color:var(--orange-2);
+  font-size:.82rem; align-self:center; }
+.hist-main { grid-area:main; display:flex; align-items:center; font-size:.9rem; }
+.hist-main .tlogo { width:18px; height:18px; margin-right:6px; }
+.hist-sub { grid-area:sub; color:var(--muted); font-size:.74rem; margin-top:1px; }
+.hist-more { margin-top:12px; width:100%; font-size:.82rem; }
