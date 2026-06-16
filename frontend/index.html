@@ -137,17 +137,36 @@
             <feColorMatrix in="n" type="matrix"
               values="0 0 0 0 1  0 0 0 0 0.86  0 0 0 0 0.72  0 0 0 0.42 -0.14"/>
           </filter>
+          <filter id="bb-seamblur" x="-6%" y="-6%" width="112%" height="112%">
+            <feGaussianBlur stdDeviation="2.2"/>
+          </filter>
           <clipPath id="bb-clip"><circle cx="200" cy="200" r="185"/></clipPath>
         </defs>
         <g clip-path="url(#bb-clip)">
           <circle cx="200" cy="200" r="185" fill="url(#bb-leather)"/>
           <circle cx="200" cy="200" r="185" filter="url(#bb-grain-d)" style="mix-blend-mode:multiply" opacity="0.55"/>
           <circle cx="200" cy="200" r="185" filter="url(#bb-grain-l)" style="mix-blend-mode:soft-light" opacity="0.5"/>
-          <g fill="none" stroke="#2a1406" stroke-width="6" stroke-linecap="round" opacity="0.95">
-            <path d="M200,15 L200,385"/>
-            <path d="M15,200 L385,200"/>
-            <path d="M200,15 C65,80 65,320 200,385"/>
-            <path d="M200,15 C335,80 335,320 200,385"/>
+          <!-- seams: blurred groove shadow + crisp line + lit upper lip = recessed look.
+               Endpoints sit just inside the rim and the curves bow like a sphere's meridians. -->
+          <g fill="none" stroke-linecap="round">
+            <g filter="url(#bb-seamblur)" stroke="#160a01" stroke-width="9" opacity="0.45">
+              <path d="M200,22 L200,378"/>
+              <path d="M26,201 C100,207 300,207 374,201"/>
+              <path d="M200,22 C82,84 82,316 200,378"/>
+              <path d="M200,22 C318,84 318,316 200,378"/>
+            </g>
+            <g stroke="#2a1204" stroke-width="5">
+              <path d="M200,22 L200,378"/>
+              <path d="M26,201 C100,207 300,207 374,201"/>
+              <path d="M200,22 C82,84 82,316 200,378"/>
+              <path d="M200,22 C318,84 318,316 200,378"/>
+            </g>
+            <g stroke="rgba(255,194,138,0.22)" stroke-width="1.3" transform="translate(0,-1.8)">
+              <path d="M200,22 L200,378"/>
+              <path d="M26,201 C100,207 300,207 374,201"/>
+              <path d="M200,22 C82,84 82,316 200,378"/>
+              <path d="M200,22 C318,84 318,316 200,378"/>
+            </g>
           </g>
           <ellipse cx="150" cy="126" rx="104" ry="70" fill="url(#bb-spec)"/>
           <circle cx="200" cy="200" r="185" fill="url(#bb-rim)"/>
