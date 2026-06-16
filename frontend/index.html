@@ -146,26 +146,21 @@
           <circle cx="200" cy="200" r="185" fill="url(#bb-leather)"/>
           <circle cx="200" cy="200" r="185" filter="url(#bb-grain-d)" style="mix-blend-mode:multiply" opacity="0.55"/>
           <circle cx="200" cy="200" r="185" filter="url(#bb-grain-l)" style="mix-blend-mode:soft-light" opacity="0.5"/>
-          <!-- seams: blurred groove shadow + crisp line + lit upper lip = recessed look.
-               Endpoints sit just inside the rim and the curves bow like a sphere's meridians. -->
+          <!-- seams: a blurred groove shadow under a crisp line = recessed look.
+               "+" through the centre plus two side meridians bowing outward
+               (widest at the equator) — the classic basketball pattern. -->
           <g fill="none" stroke-linecap="round">
-            <g filter="url(#bb-seamblur)" stroke="#160a01" stroke-width="9" opacity="0.45">
-              <path d="M200,22 L200,378"/>
-              <path d="M26,201 C100,207 300,207 374,201"/>
-              <path d="M200,22 C82,84 82,316 200,378"/>
-              <path d="M200,22 C318,84 318,316 200,378"/>
+            <g filter="url(#bb-seamblur)" stroke="#160a01" stroke-width="8.5" opacity="0.4">
+              <path d="M200,20 L200,380"/>
+              <path d="M22,200 L378,200"/>
+              <path d="M200,20 C72,92 72,308 200,380"/>
+              <path d="M200,20 C328,92 328,308 200,380"/>
             </g>
             <g stroke="#2a1204" stroke-width="5">
-              <path d="M200,22 L200,378"/>
-              <path d="M26,201 C100,207 300,207 374,201"/>
-              <path d="M200,22 C82,84 82,316 200,378"/>
-              <path d="M200,22 C318,84 318,316 200,378"/>
-            </g>
-            <g stroke="rgba(255,194,138,0.22)" stroke-width="1.3" transform="translate(0,-1.8)">
-              <path d="M200,22 L200,378"/>
-              <path d="M26,201 C100,207 300,207 374,201"/>
-              <path d="M200,22 C82,84 82,316 200,378"/>
-              <path d="M200,22 C318,84 318,316 200,378"/>
+              <path d="M200,20 L200,380"/>
+              <path d="M22,200 L378,200"/>
+              <path d="M200,20 C72,92 72,308 200,380"/>
+              <path d="M200,20 C328,92 328,308 200,380"/>
             </g>
           </g>
           <ellipse cx="150" cy="126" rx="104" ry="70" fill="url(#bb-spec)"/>
