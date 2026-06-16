@@ -329,6 +329,7 @@ async function load() {
   try {
     rawPlayers = await fetchPlayers();
     setHeroStat("stat-players", rawPlayers.length);
+    showDataFreshness();
     // pool / min-minutes need the live backend; grey them out on snapshot fallback
     if (usingSnapshot) {
       document.getElementById("pool")?.closest(".tool")?.classList.add("disabled");
@@ -361,7 +362,28 @@ async function fetchPlayers() {
   const r = await fetch(`data/players-${state.season}.json`);
   if (!r.ok) throw new Error(r.status);
   usingSnapshot = true;
-  return (await r.json()).players;
+  const j = await r.json();
+  dataGenerated = j.generated || null;
+  return j.players;
+}
+let dataGenerated = null;
+// "today" / "yesterday" / "3 days ago" / a date — for the freshness label.
+function relativeDate(iso) {
+  if (!iso) return "";
+  const then = new Date(iso), now = new Date();
+  if (isNaN(then)) return "";
+  const days = Math.floor((now.setHours(0,0,0,0) - new Date(then).setHours(0,0,0,0)) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return then.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+function showDataFreshness() {
+  const el = document.getElementById("data-updated");
+  if (!el) return;
+  if (usingSnapshot && dataGenerated) el.textContent = ` · data updated ${relativeDate(dataGenerated)}`;
+  else if (!usingSnapshot) el.textContent = " · live engine";
+  else el.textContent = "";
 }
 
 // Advanced stats — keyed by player id

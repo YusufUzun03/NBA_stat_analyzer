@@ -369,27 +369,9 @@ b, strong { font-weight: 800; }
   color: #1a0e07; border-color: transparent; box-shadow: 0 6px 18px rgba(238,103,48,0.35); }
 
 /* ===== rankings board ===== */
-.board { background: var(--panel); border: 1px solid var(--panel-brd); border-radius: var(--radius);
-  overflow: hidden; }
-.board-head, .board-row { display: grid;
-  grid-template-columns: 48px 1.6fr 70px 84px 64px 64px 64px; align-items: center;
-  gap: 8px; padding: 14px 20px; }
-.board-head { color: var(--muted); font-size: 0.74rem; font-weight: 700; letter-spacing: 1px;
-  text-transform: uppercase; border-bottom: 1px solid var(--panel-brd); background: rgba(255,255,255,0.02); }
-.board-rows .board-row { border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s; }
-.board-row:hover { background: rgba(255,255,255,0.03); }
-.board-row .rk { font-family: "Archivo"; color: var(--muted); }
-.board-row .pl { font-weight: 600; }
-.board-row .tm { color: var(--muted); font-size: 0.85rem; }
-.board-row .tot { font-family: "Archivo"; font-weight: 700; color: var(--gold); }
-.board-row.top1 .tot { color: var(--orange-2); }
 .board-loading, .board-note { padding: 22px 20px; color: var(--muted); font-size: 0.9rem; }
 .board-note { border-top: 1px solid var(--panel-brd); font-size: 0.82rem; }
 .board-note.warn { color: var(--gold); }
-
-/* enter animation for rows */
-.board-row { animation: rowin 0.4s ease both; }
-@keyframes rowin { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
 
 /* ===== rankings toolbar ===== */
 .toolbar { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; margin:30px 0 16px; }
@@ -562,10 +544,22 @@ select { cursor:pointer; min-width:120px; }
   .cards, .steps { grid-template-columns: repeat(2, 1fr); }
   .trade-grid { grid-template-columns: 1fr; }
 }
+@media (max-width: 720px) {
+  /* keep rank + player pinned while the 9 category columns scroll */
+  .rank-table { font-size: .82rem; }
+  .rank-table thead th, .rank-table tbody td { padding: 8px 7px; }
+  .rank-table .c-rk, .rank-table thead th:first-child {
+    position: sticky; left: 0; z-index: 3; background: #11151f; min-width: 30px;
+  }
+  .rank-table .c-name, .rank-table thead th:nth-child(2) {
+    position: sticky; left: 30px; z-index: 3; background: #11151f;
+    box-shadow: 7px 0 9px -7px rgba(0, 0, 0, .65);
+  }
+  .rank-table thead th:first-child, .rank-table thead th:nth-child(2) { z-index: 4; }
+  .rank-table tbody tr:hover .c-rk, .rank-table tbody tr:hover .c-name { background: #161b29; }
+}
 @media (max-width: 620px) {
   .cards, .steps { grid-template-columns: 1fr; }
-  .board-head .hide-sm, .board-row .hide-sm { display: none; }
-  .board-head, .board-row { grid-template-columns: 40px 1.5fr 56px 72px; }
   .hero-stats { gap: 20px; }
 }
 @media (prefers-reduced-motion: reduce) {

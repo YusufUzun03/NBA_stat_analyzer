@@ -110,7 +110,7 @@
     <h2 class="section-title reveal">NBA Players</h2>
     <p class="section-lead reveal">Search any player for career stats, season-by-season trends, and fantasy breakdown.</p>
     <div class="player-search-wrap reveal">
-      <input id="player-search" type="search" placeholder="🔍  Search any NBA player…" autocomplete="off" />
+      <input id="player-search" type="search" placeholder="🔍  Search any NBA player…" autocomplete="off"  aria-label="Search any NBA player…" />
     </div>
     <div class="player-grid reveal" id="player-grid">
       <div class="board-loading">Loading players…</div>
@@ -152,7 +152,7 @@
 
     <div class="toolbar reveal">
       <div class="tool tool-search">
-        <input id="search" type="search" placeholder="🔍  Search player…" autocomplete="off" />
+        <input id="search" type="search" placeholder="🔍  Search player…" autocomplete="off"  aria-label="Search player…" />
       </div>
       <div class="tool">
         <label for="season">Season</label>
@@ -231,7 +231,7 @@
       <div class="trade-side">
         <h3>You give</h3>
         <div class="ac" data-ac="give">
-          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off"  aria-label="Add player…" />
           <div class="ac-menu"></div>
         </div>
         <div class="trade-list" id="give-list"></div>
@@ -244,7 +244,7 @@
       <div class="trade-side">
         <h3>You get</h3>
         <div class="ac" data-ac="get">
-          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off"  aria-label="Add player…" />
           <div class="ac-menu"></div>
         </div>
         <div class="trade-list" id="get-list"></div>
@@ -309,7 +309,7 @@
       <div class="trade-side">
         <h3>My team</h3>
         <div class="ac" data-ac="mu-mine">
-          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off"  aria-label="Add player…" />
           <div class="ac-menu"></div>
         </div>
         <div class="trade-list" id="mu-mine-list"></div>
@@ -322,7 +322,7 @@
       <div class="trade-side">
         <h3>Opponent</h3>
         <div class="ac" data-ac="mu-opp">
-          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off"  aria-label="Add player…" />
           <div class="ac-menu"></div>
         </div>
         <div class="trade-list" id="mu-opp-list"></div>
@@ -336,7 +336,7 @@
     <p class="section-lead reveal">Pick a player to see which categories to punt to lift their value the most.</p>
 
     <div class="ac ac-wide reveal" data-ac="punt">
-      <input type="search" placeholder="🔍  Search a player…" autocomplete="off" />
+      <input type="search" placeholder="🔍  Search a player…" autocomplete="off"  aria-label="Search a player…" />
       <div class="ac-menu"></div>
     </div>
     <div class="puntfit-result reveal" id="puntfit-result"></div>
@@ -363,7 +363,7 @@
   </section>
 
   <footer class="footer">
-    <p>HoopIQ · built with a 9-category z-score engine · data from basketball-reference.com</p>
+    <p>HoopIQ · built with a 9-category z-score engine · data from basketball-reference.com<span id="data-updated"></span></p>
   </footer>
 
   <!-- ===================== PLAYER MODAL ===================== -->
