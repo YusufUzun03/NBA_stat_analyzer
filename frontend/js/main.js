@@ -212,35 +212,32 @@ function initCounters() {
     if (e.isIntersecting) { run(e.target); obs.unobserve(e.target); } }));
   document.querySelectorAll(".hero-stats b[data-count]").forEach((n) => io.observe(n));
 }
-// Hero visual: a fanned stack of the live top-3 by total z (glassy cards with
-// a category equalizer); click opens the player modal.
-function renderHeroCards() {
-  const wrap = document.getElementById("hero-stack");
+// Hero visual: a live radar of the current #1's 9-category z profile, cycling
+// through the top 5. Click the caption to open that player's modal.
+let heroRadarTimer = null;
+let heroRadarIdx = 0;
+function renderHeroRadar() {
+  const wrap = document.getElementById("hero-radar");
   if (!wrap || !rawPlayers.length) return;
-  const top = computeBoard().slice(0, 3);
-  const cats = [["pts", "P"], ["reb", "R"], ["ast", "A"], ["stl", "S"], ["blk", "B"]];
-  wrap.innerHTML = top.map((p, i) => {
-    const bars = cats.map(([k, lab]) => {
-      const z = p.z?.[k] ?? 0;
-      const h = Math.max(6, Math.min(100, ((z + 2) / 5) * 100));
-      const col = z >= 0 ? "var(--good)" : "var(--bad)";
-      return `<span class="hvb"><i style="height:${h.toFixed(0)}%;background:${col}"></i><em>${lab}</em></span>`;
-    }).join("");
-    return `<button class="hv-card" data-id="${esc(p.id)}" style="--i:${i}" aria-label="View ${esc(p.name)}">
-      <span class="hv-top">
-        <span class="hv-rank">${p.rank}</span>
-        ${avatarHTML(p, "hv-av")}
-        <span class="hv-info">
-          <span class="hv-name">${esc(p.name)}</span>
-          <span class="hv-team">${teamLogo(p.team)}${esc(p.team || "")} · ${esc(p.pos || "")}</span>
-        </span>
-        <span class="hv-z ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}</span>
-      </span>
-      <span class="hv-bars">${bars}</span>
-    </button>`;
-  }).join("");
-  wrap.querySelectorAll(".hv-card[data-id]").forEach((el) =>
-    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+  const top = computeBoard().slice(0, 5);
+  if (!top.length) return;
+  const draw = () => {
+    const p = top[heroRadarIdx % top.length];
+    wrap.innerHTML =
+      `<div class="hr-chart">${radarSVG([p], 360)}</div>` +
+      `<button class="hr-cap" data-id="${esc(p.id)}" aria-label="View ${esc(p.name)}">` +
+        `<span class="hr-rank">#${p.rank}</span>` +
+        `<span class="hr-name">${esc(p.name)}</span>` +
+        `<span class="hr-z">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)} z</span>` +
+      `</button>`;
+    wrap.querySelector(".hr-cap")?.addEventListener("click", () => { const pl = getPlayer(p.id); if (pl) openModal(pl); });
+  };
+  draw();
+  clearInterval(heroRadarTimer);
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduce && top.length > 1) {
+    heroRadarTimer = setInterval(() => { heroRadarIdx = (heroRadarIdx + 1) % top.length; draw(); }, 3800);
+  }
 }
 
 // Override a hero counter with the real, data-driven value once loaded.
@@ -388,7 +385,7 @@ async function load() {
     renderLeaders();
     renderPlayerGrid("");
     renderMyTeam();
-    renderHeroCards();
+    renderHeroRadar();
     fetchAdvanced(); // fire-and-forget; populates advancedData for modals
   } catch (err) {
     rawPlayers = [];
