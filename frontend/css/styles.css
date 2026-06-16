@@ -1224,3 +1224,23 @@ select { cursor:pointer; min-width:120px; }
 .po-team.win { background:rgba(68,208,123,.08); font-weight:700; }
 .po-team.win b { color:var(--good); }
 .po-team:not(.win) span { color:var(--muted); }
+
+/* clickable team links + team modal */
+.tm-link { cursor:pointer; display:inline-flex; align-items:center; border-radius:5px; transition:color .15s; }
+.tm-link:hover { color:var(--orange-2); }
+.stand-row[data-tm] { cursor:pointer; }
+.stand-row[data-tm]:hover { background:rgba(238,103,48,.08); }
+.tm-logo { width:84px; height:84px; display:grid; place-items:center; flex-shrink:0;
+  background:var(--panel); border:1px solid var(--panel-brd); border-radius:18px; }
+.tm-logo .tlogo { width:54px; height:54px; margin:0; }
+.tm-titles { font-size:.78rem; color:var(--gold); margin-top:8px; }
+.tm-sec-h { font-family:"Archivo"; font-weight:800; font-size:.95rem; margin:20px 0 10px;
+  display:flex; gap:8px; align-items:baseline; }
+.tm-sec-h small { color:var(--muted); font-weight:600; font-size:.74rem; }
+.tm-roster { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:6px; }
+.tm-pl { display:flex; justify-content:space-between; align-items:center; gap:8px;
+  background:rgba(255,255,255,.03); border:1px solid var(--panel-brd); border-radius:9px;
+  padding:8px 11px; cursor:pointer; color:var(--ink); font:inherit; text-align:left; transition:all .15s; }
+.tm-pl:hover { border-color:rgba(238,103,48,.45); background:rgba(238,103,48,.05); }
+.tm-pl > span:first-child { font-weight:600; font-size:.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tm-pl-meta { color:var(--muted); font-size:.76rem; white-space:nowrap; }

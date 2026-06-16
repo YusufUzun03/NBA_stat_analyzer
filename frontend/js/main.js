@@ -665,7 +665,7 @@ function rowEl(p) {
     `<td class="l c-rk">${p.rank}${tierDot(p.total)}</td>` +
     `<td class="l c-name"><button class="star-btn${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button><span class="pname" data-id="${esc(p.id)}" style="cursor:pointer" title="View details">${esc(p.name)}</span></td>` +
     `<td class="l c-pos">${esc(p.pos || "")}</td>` +
-    `<td class="l c-team">${teamLogo(p.team)}${esc(p.team || "")}</td>` +
+    `<td class="l c-team"><span class="tm-link" data-tm="${esc(p.team)}" title="Team page">${teamLogo(p.team)}${esc(p.team || "")}</span></td>` +
     `<td class="c-gp">${p.gp ?? "—"}</td>` +
     `<td class="c-total">${p.total.toFixed(2)}</td>` +
     CATS.map((c) => {
@@ -744,6 +744,8 @@ function initTools() {
   document.getElementById("rankTable").addEventListener("click", (e) => {
     const starBtn = e.target.closest(".star-btn[data-star]");
     if (starBtn) { toggleStar(starBtn.dataset.star); return; }
+    const tmLink = e.target.closest(".tm-link[data-tm]");
+    if (tmLink) { openTeamModal(tmLink.dataset.tm); return; }
     const nameCell = e.target.closest(".pname[data-id]");
     if (nameCell) { const p = getPlayer(nameCell.dataset.id); if (p) { openModal(p); return; } }
     const cmpBtn = e.target.closest(".cmp-btn[data-id]");
@@ -856,7 +858,7 @@ async function renderHistory() {
       histStandingsSeason = s.seasons[state.season] ? state.season : seasons[0];
     const sel = s.seasons[histStandingsSeason] || { East: [], West: [] };
     const confTable = (name, rows) => `<div class="stand-conf"><div class="stand-h">${name}</div>` +
-      rows.map((r) => `<div class="stand-row${+r.seed <= 8 ? " playoff" : ""}">
+      rows.map((r) => `<div class="stand-row${+r.seed <= 8 ? " playoff" : ""}" data-tm="${esc(r.abbr)}" role="button" tabindex="0">
         <span class="stand-seed">${esc(r.seed)}</span>
         <span class="stand-team">${teamLogo(r.abbr)}${esc(r.team)}</span>
         <span class="stand-rec">${esc(r.w)}–${esc(r.l)}</span>
@@ -867,6 +869,8 @@ async function renderHistory() {
       `</select><span class="hist-aw-label" style="margin:0">Top 8 make the playoffs</span></div>` +
       `<div class="stand-grid">${confTable("Eastern", sel.East)}${confTable("Western", sel.West)}</div>`;
     document.getElementById("stand-season")?.addEventListener("change", (e) => { histStandingsSeason = e.target.value; renderHistory(); });
+    body.querySelectorAll(".stand-row[data-tm]").forEach((el) =>
+      el.addEventListener("click", () => openTeamModal(el.dataset.tm)));
 
   } else if (histTab === "playoffs") {
     body.innerHTML = `<div class="board-loading">Loading bracket…</div>`;
@@ -895,6 +899,67 @@ async function renderHistory() {
       `<div class="po-bracket">${PO_STAGES.map(col).join("")}</div>`;
     document.getElementById("po-season")?.addEventListener("change", (e) => { histPoSeason = e.target.value; renderHistory(); });
   }
+}
+
+/* ---- team page (modal, built from existing data) ---- */
+let TEAM_NAMES = null;
+function teamNames() {
+  if (TEAM_NAMES) return TEAM_NAMES;
+  TEAM_NAMES = {};
+  if (standingsData) for (const yr in standingsData.seasons)
+    for (const conf of ["East", "West"])
+      (standingsData.seasons[yr][conf] || []).forEach((r) => { if (r.abbr) TEAM_NAMES[r.abbr] = r.team; });
+  return TEAM_NAMES;
+}
+async function openTeamModal(abbr) {
+  abbr = (abbr || "").toUpperCase();
+  if (!abbr || !teamLogoURL(abbr)) return;     // skip multi-team / unknown
+  const overlay = document.getElementById("modal-overlay");
+  const content = document.getElementById("modal-content");
+  if (!overlay || !content) return;
+  content.innerHTML = '<div class="career-loading">Loading team…</div>';
+  overlay.classList.add("open"); overlay.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  lastFocused = document.activeElement;
+
+  const [st, hi] = await Promise.all([loadStandings(), loadHistory()]);
+  const name = teamNames()[abbr] || abbr;
+  const recs = [];
+  if (st) for (const yr of Object.keys(st.seasons))
+    for (const conf of ["East", "West"]) {
+      const r = (st.seasons[yr][conf] || []).find((x) => x.abbr === abbr);
+      if (r) recs.push({ season: yr, conf, seed: r.seed, w: r.w, l: r.l, pct: r.pct });
+    }
+  recs.reverse();
+  const titles = (hi?.champions || []).filter((c) => c.champion_abbr === abbr).map((c) => c.season);
+  const runners = (hi?.champions || []).filter((c) => c.runner_up_abbr === abbr).map((c) => c.season);
+  const roster = rawPlayers.filter((p) => (p.team || "").toUpperCase() === abbr)
+    .map((p) => ({ ...p, t: fullZTotal(p) })).sort((a, b) => b.t - a.t);
+
+  const recRows = recs.map((r) => `<tr>
+      <td class="cat-lbl">${esc(r.season)}</td><td>${esc(r.conf)} ${esc(r.seed)}</td>
+      <td>${esc(r.w)}–${esc(r.l)}</td><td>${esc(r.pct)}</td></tr>`).join("");
+  const rosterHtml = roster.length ? `<div class="tm-sec-h">Current roster <small>${state.season}</small></div>
+    <div class="tm-roster">${roster.map((p) => `<button class="tm-pl" data-id="${esc(p.id)}">
+      <span>${esc(p.name)}</span><span class="tm-pl-meta">${esc(p.pos || "")} · <b class="${p.t >= 0 ? "pos-good" : "pos-bad"}">${p.t >= 0 ? "+" : ""}${p.t.toFixed(1)}</b></span></button>`).join("")}</div>` : "";
+
+  content.innerHTML = `
+    <div class="modal-header modal-header-photo">
+      <div class="tm-logo">${teamLogo(abbr) || ""}</div>
+      <div class="modal-head-info">
+        <div class="modal-name">${esc(name)}</div>
+        <div class="modal-meta">${titles.length ? `🏆 ${titles.length} title${titles.length > 1 ? "s" : ""}` : "No titles since 2000"}${runners.length ? ` · ${runners.length} Finals runner-up` : ""}</div>
+        ${titles.length ? `<div class="tm-titles">Champions: ${titles.map(esc).join(", ")}</div>` : ""}
+      </div>
+    </div>
+    ${rosterHtml}
+    <div class="tm-sec-h">Season by season <small>since 2000-01</small></div>
+    <div class="career-table-wrap"><table class="career-tbl"><thead><tr>
+      <th class="cat-lbl">Season</th><th>Conf · Seed</th><th>W–L</th><th>Win%</th></tr></thead>
+      <tbody>${recRows || '<tr><td colspan="4" class="cat-lbl">No records.</td></tr>'}</tbody></table></div>`;
+
+  content.querySelectorAll(".tm-pl[data-id]").forEach((b) =>
+    b.addEventListener("click", () => { const p = getPlayer(b.dataset.id); if (p) openModal(p); }));
 }
 
 /* ---- draft tiers (snake-draft cheat sheet) ---- */
