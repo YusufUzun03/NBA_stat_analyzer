@@ -24,6 +24,11 @@
       <path d="M-135 -135 C-50 -50 -50 50 -135 135"/>
       <path d="M135 -135 C50 -50 50 50 135 135"/>
     </g>
+    <!-- box brackets around the ball (BoxScore mark) -->
+    <g stroke="#ff8a4c" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M-205 -210 H-245 V210 H-205"/>
+      <path d="M205 -210 H245 V210 H205"/>
+    </g>
   </g>
   <!-- copy -->
   <text x="90" y="210" font-family="Archivo, Arial, sans-serif" font-weight="900" font-size="58" fill="#9aa3b8" letter-spacing="4">9-CATEGORY · Z-SCORE ENGINE</text>
