@@ -24,3 +24,7 @@ backend/scripts/*.log
 Thumbs.db
 .vscode/
 .idea/
+
+# runtime scrape logs
+backend/*.log
+backend/scripts/*.log
