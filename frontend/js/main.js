@@ -92,6 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initNav();
   initMobileMenu();
   initScrollSpy();
+  initShortcuts();
   initApiLink();
   initReveals();
   initCounters();
@@ -154,6 +155,17 @@ function initMobileMenu() {
     if (nav.classList.contains("open") && !e.target.closest(".nav")) close();
   });
   window.addEventListener("resize", () => { if (window.innerWidth > 900) close(); });
+}
+
+/* ---- keyboard shortcut: "/" jumps to the board search ---- */
+function initShortcuts() {
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+    const el = document.getElementById("search");
+    if (el) { e.preventDefault(); el.scrollIntoView({ block: "center", behavior: "smooth" }); el.focus(); }
+  });
 }
 
 /* ---- scroll-spy: highlight the nav link for the section in view ---- */
@@ -301,10 +313,7 @@ function initControls() {
   // pool + min minutes (baseline-affecting -> refetch; disabled when hosted)
   bindRange("pool", "poolVal", (v) => { state.pool = v; load(); });
   bindRange("minMin", "minVal", (v) => { state.minMin = v; load(); });
-  if (!API) {
-    document.getElementById("pool").closest(".tool").classList.add("disabled");
-    document.getElementById("minMin").closest(".tool").classList.add("disabled");
-  }
+  if (!API) disablePoolControls();
 
   document.getElementById("reset").addEventListener("click", () => {
     state = { ...DEFAULTS, punts: new Set() };
@@ -312,6 +321,15 @@ function initControls() {
   });
   document.getElementById("export").addEventListener("click", exportCsv);
   document.getElementById("share")?.addEventListener("click", shareView);
+}
+// Pool & min-minutes change the z-score baseline, which needs the live backend.
+// On the hosted snapshot they're fixed, so grey them out and explain why.
+function disablePoolControls() {
+  const why = "Needs the live backend — the hosted snapshot is fixed at pool 156 / 12 MPG.";
+  ["pool", "minMin"].forEach((id) => {
+    const tool = document.getElementById(id)?.closest(".tool");
+    if (tool) { tool.classList.add("disabled"); tool.title = why; }
+  });
 }
 function bindRange(id, valId, onCommit) {
   const el = document.getElementById(id), out = document.getElementById(valId);
@@ -330,11 +348,7 @@ async function load() {
     rawPlayers = await fetchPlayers();
     setHeroStat("stat-players", rawPlayers.length);
     showDataFreshness();
-    // pool / min-minutes need the live backend; grey them out on snapshot fallback
-    if (usingSnapshot) {
-      document.getElementById("pool")?.closest(".tool")?.classList.add("disabled");
-      document.getElementById("minMin")?.closest(".tool")?.classList.add("disabled");
-    }
+    if (usingSnapshot) disablePoolControls();   // backend-only; grey out on snapshot
     populateTeams();
     render();
     refreshTools();
@@ -1177,6 +1191,16 @@ function initModal() {
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
   document.getElementById("modal-close")?.addEventListener("click", closeModal);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+  // focus trap: keep Tab cycling within the open dialog
+  overlay.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || !overlay.classList.contains("open")) return;
+    const list = [...overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!list.length) return;
+    const first = list[0], last = list[list.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 }
 function openModal(p) {
   currentModalPlayer = p;
@@ -1420,7 +1444,7 @@ let careerSnapshot = null;
 async function loadCareerSnapshot() {
   if (careerSnapshot !== null) return;
   try {
-    const r = await fetch("data/career-2025-26.json");
+    const r = await fetch(`data/career-${state.season}.json`);
     if (r.ok) { const j = await r.json(); careerSnapshot = j.players || {}; }
     else careerSnapshot = {};
   } catch { careerSnapshot = {}; }
