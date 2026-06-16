@@ -51,6 +51,38 @@ cd backend
 pytest
 ```
 
+## Keeping the data fresh
+
+The hosted site is static — it reads JSON snapshots in `frontend/data/`. Two
+GitHub Actions keep those snapshots current and redeploy automatically:
+
+| Workflow | Schedule | Regenerates |
+|---|---|---|
+| `update-core.yml` | nightly (09:00 UTC) | players, schedule, advanced, manifest |
+| `update-full.yml` | weekly (Mon 10:00 UTC) | the above **plus** career + game logs |
+
+Season-to-date averages live in the `players` snapshot, so new games, trades and
+called-up players show up within a day. The slow per-player scrapes (career
+tables, game logs behind the Recent Form / consistency views) refresh weekly to
+stay polite to basketball-reference. Both can also be run on demand from the
+Actions tab (`workflow_dispatch`).
+
+The active season is inferred from the date (`config.current_season()`), so when
+a new NBA season tips off in October the refresh targets it automatically and
+`manifest.json` adds it to the site's season dropdown — no code change needed.
+
+To regenerate locally instead:
+
+```bash
+cd backend
+python scripts/gen_players.py    # value board / rankings (fast)
+python scripts/gen_schedule.py   # schedule / streamers (~25s)
+python scripts/gen_advanced.py   # advanced stats (fast)
+python scripts/gen_career.py     # career tables (slow, per-player)
+python scripts/gen_gamelog.py    # game logs (slow, per-player)
+python scripts/gen_manifest.py   # season dropdown manifest
+```
+
 ## Project layout
 
 ```

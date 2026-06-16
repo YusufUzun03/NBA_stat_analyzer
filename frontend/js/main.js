@@ -18,9 +18,12 @@ const POSITIONS = ["PG", "SG", "SF", "PF", "C"];
 // Accent-insensitive search key: "Jokić" -> "jokic", "Dončić" -> "doncic",
 // so users can find players without typing diacritics.
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-const SEASONS = API
+// Hosted: the available seasons come from data/manifest.json (kept in sync by
+// the nightly refresh), so a new season appears automatically. Live backend:
+// it can serve any recent season. bootstrapSeasons() may replace this list.
+let SEASONS = API
   ? ["2025-26", "2024-25", "2023-24", "2022-23", "2021-22"]
-  : ["2025-26"]; // only the bundled snapshot is available when hosted
+  : ["2025-26"]; // fallback until the manifest loads
 
 const DEFAULTS = { season: "2025-26", pool: 156, minMin: 12, punts: [],
   pos: "ALL", team: "ALL", search: "", sortKey: "total", sortDir: "desc" };
@@ -55,16 +58,33 @@ function syncStarChip() {
   chip.textContent = `★ Starred (${watchlist.size})`;
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   initNav();
   initApiLink();
   initReveals();
   initCounters();
+  await bootstrapSeasons();   // hosted: pull the season list from the manifest first
   initControls();
   initTools();
   initModal();
   load();
 });
+
+// Hosted mode only: read data/manifest.json so the season dropdown reflects the
+// snapshots that actually exist, and default to the current season. Falls back
+// silently to the hardcoded list if the manifest is missing.
+async function bootstrapSeasons() {
+  if (API) return;
+  try {
+    const r = await fetch("data/manifest.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const m = await r.json();
+    if (Array.isArray(m.seasons) && m.seasons.length) {
+      SEASONS = m.seasons;
+      if (!SEASONS.includes(state.season)) state.season = m.current || SEASONS[0];
+    }
+  } catch {}
+}
 
 /* ---------- nav / reveal / counters ---------- */
 function initNav() {
