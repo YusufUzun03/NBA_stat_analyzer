@@ -31,6 +31,7 @@
       <a href="#myteam">My Team</a>
       <a href="#schedule">Schedule</a>
       <a href="#streamers">Streamers</a>
+      <a href="#matchup">Matchup</a>
       <a href="#leaders">Leaders</a>
       <a id="api-link" class="btn btn-ghost" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">API</a>
     </nav>
@@ -247,6 +248,41 @@
     </div>
     <div class="stream-grid reveal" id="stream-grid">
       <div class="board-loading">Pick a week in Schedule to see streaming targets…</div>
+    </div>
+  </section>
+
+  <!-- ===================== MATCHUP SIMULATOR ===================== -->
+  <section class="section" id="matchup">
+    <h2 class="section-title reveal">Matchup simulator</h2>
+    <p class="section-lead reveal">Project a head-to-head week. Build both rosters, and HoopIQ uses the week selected in Schedule above (games played × per-game value) to call each of the 9 categories and a projected score.</p>
+
+    <div class="mu-bar reveal">
+      <button id="mu-load" class="btn btn-ghost" type="button">★ Load my starred roster</button>
+      <span id="mu-week" class="wk-range"></span>
+    </div>
+
+    <div class="trade-grid reveal">
+      <div class="trade-side">
+        <h3>My team</h3>
+        <div class="ac" data-ac="mu-mine">
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <div class="ac-menu"></div>
+        </div>
+        <div class="trade-list" id="mu-mine-list"></div>
+      </div>
+
+      <div class="trade-result" id="mu-result">
+        <div class="trade-empty">Add players to both rosters to project the week.</div>
+      </div>
+
+      <div class="trade-side">
+        <h3>Opponent</h3>
+        <div class="ac" data-ac="mu-opp">
+          <input type="search" placeholder="🔍  Add player…" autocomplete="off" />
+          <div class="ac-menu"></div>
+        </div>
+        <div class="trade-list" id="mu-opp-list"></div>
+      </div>
     </div>
   </section>
 

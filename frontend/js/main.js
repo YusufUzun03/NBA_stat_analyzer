@@ -461,6 +461,7 @@ function initTools() {
   attachAC(document.querySelector('.ac[data-ac="punt"]'), (p) => { puntFitId = p.id; renderPuntFit(); });
   initSchedule();
   initStreamers();
+  initMatchup();
   // Phase 3: event delegation for player modal + compare buttons
   document.getElementById("rankTable").addEventListener("click", (e) => {
     const starBtn = e.target.closest(".star-btn[data-star]");
@@ -649,6 +650,108 @@ function renderTrade() {
     }).join("");
 }
 
+/* ---- matchup simulator (projected H2H week) ---- */
+const matchupSel = { mine: [], opp: [] };
+function initMatchup() {
+  attachAC(document.querySelector('.ac[data-ac="mu-mine"]'), (p) => addMatchup("mine", p.id));
+  attachAC(document.querySelector('.ac[data-ac="mu-opp"]'), (p) => addMatchup("opp", p.id));
+  document.getElementById("mu-load")?.addEventListener("click", () => {
+    matchupSel.mine = [...watchlist].filter((id) => getPlayer(id));
+    renderMatchupLists(); renderMatchup();
+  });
+}
+function addMatchup(side, id) {
+  if (matchupSel[side].includes(id)) return;
+  matchupSel[side].push(id); renderMatchupLists(); renderMatchup();
+}
+function removeMatchup(side, id) {
+  matchupSel[side] = matchupSel[side].filter((x) => x !== id); renderMatchupLists(); renderMatchup();
+}
+function renderMatchupLists() {
+  for (const side of ["mine", "opp"]) {
+    const el = document.getElementById(`mu-${side}-list`);
+    if (!el) continue;
+    el.innerHTML = matchupSel[side].map((id) => {
+      const p = getPlayer(id);
+      if (!p) return "";
+      return `<div class="tl-item"><span>${esc(p.name)}</span><span><span class="tot">${esc(p.team || "—")}</span> <button data-side="${side}" data-id="${esc(id)}">×</button></span></div>`;
+    }).join("");
+    el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => removeMatchup(b.dataset.side, b.dataset.id)));
+  }
+}
+// Project a roster over the schedule week. Counting cats accumulate raw weekly
+// totals (per-game × games); % cats accumulate games-weighted makes so we can
+// show a games-weighted team FG%/FT%.
+function projectRoster(ids, gmap) {
+  const raw = {}; let games = 0;
+  CAT_KEYS.forEach((k) => (raw[k] = 0));
+  ids.forEach((id) => {
+    const p = getPlayer(id); if (!p) return;
+    const g = gmap[p.team] || 0;
+    games += g;
+    CAT_KEYS.forEach((k) => {
+      const rawKey = k === "fg" ? "fg_pct" : k === "ft" ? "ft_pct" : k;
+      raw[k] += (p.stats?.[rawKey] ?? 0) * g;
+    });
+  });
+  return { raw, games };
+}
+function renderMatchup() {
+  const box = document.getElementById("mu-result");
+  if (!box) return;
+  if (!matchupSel.mine.length || !matchupSel.opp.length) {
+    box.innerHTML = '<div class="trade-empty">Add players to both rosters to project the week.</div>';
+    return;
+  }
+  const weekEl = document.getElementById("mu-week");
+  if (!scheduleGames.length) {
+    box.innerHTML = '<div class="trade-empty">Schedule not loaded yet — projection needs the weekly games.</div>';
+    return;
+  }
+  const anchor = document.getElementById("wk-date")?.value || "2026-01-12";
+  const wk = gamesPerWeek(scheduleGames, anchor);
+  const gmap = {}; wk.teams.forEach((t) => (gmap[t.team] = t.games));
+  if (weekEl) weekEl.textContent = `${wk.weekStart} → ${wk.weekEnd}`;
+
+  const A = projectRoster(matchupSel.mine, gmap);
+  const B = projectRoster(matchupSel.opp, gmap);
+
+  // Per-category winner is decided on the *displayed* value so the verdict
+  // always matches the numbers shown. Counting cats use the rounded weekly
+  // total (TOV: fewer wins); % cats use the games-weighted team percentage.
+  const dispVal = (side, k) => {
+    if (k === "fg" || k === "ft") return side.games ? +(side.raw[k] / side.games * 100).toFixed(1) : 0;
+    return Math.round(side.raw[k]);
+  };
+  const dispTxt = (side, k) => (k === "fg" || k === "ft")
+    ? (side.games ? dispVal(side, k).toFixed(1) + "%" : "—")
+    : dispVal(side, k).toLocaleString("en-US");
+  let win = 0, loss = 0, tie = 0;
+  const rows = CATS.map((c) => {
+    const k = c.k, inv = k === "tov";
+    const a = dispVal(A, k), b = dispVal(B, k);
+    let r = a === b ? 0 : (a > b ? 1 : -1);
+    if (inv) r = -r;                 // fewer turnovers wins
+    if (r > 0) win++; else if (r < 0) loss++; else tie++;
+    const cls = r > 0 ? "mu-win" : r < 0 ? "mu-loss" : "mu-tie";
+    return `<div class="mu-row ${cls}">
+      <span class="mu-a">${dispTxt(A, k)}</span>
+      <span class="mu-cat">${c.l}</span>
+      <span class="mu-b">${dispTxt(B, k)}</span>
+    </div>`;
+  }).join("");
+
+  const verdict = win > loss ? { t: "Projected win", c: "var(--good)" }
+    : win < loss ? { t: "Projected loss", c: "var(--bad)" }
+    : { t: "Projected tie", c: "var(--gold)" };
+  box.innerHTML = `
+    <div class="mu-score" style="color:${verdict.c}"><b>${win}</b><span>–</span><b>${loss}</b>${tie ? `<small>(${tie} tie${tie > 1 ? "s" : ""})</small>` : ""}</div>
+    <div class="mu-verdict" style="color:${verdict.c}">${verdict.t}</div>
+    <div class="mu-games">${A.games} vs ${B.games} games this week</div>
+    <div class="mu-head"><span>You</span><span>Cat</span><span>Opp</span></div>
+    <div class="mu-rows">${rows}</div>`;
+}
+
 /* ---- punt fit finder ---- */
 let puntFitId = null;
 function rankForPlayer(puntSet, id) {
@@ -728,6 +831,7 @@ function renderSchedule() {
   }).join("");
   renderMyTeam();     // refresh the roster's weekly projection for the new week
   renderStreamers();  // streamer ranks are week-specific too
+  renderMatchup();    // matchup projection is week-specific too
 }
 function gamesPerWeek(games, anchor) {
   const [mon, sun] = weekBounds(anchor), ms = fmtDate(mon), ss = fmtDate(sun);

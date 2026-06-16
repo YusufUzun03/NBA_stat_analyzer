@@ -941,3 +941,30 @@ select { cursor:pointer; min-width:120px; }
 .stream-card .pc-info { min-width:0; }
 .sg-val { font-family:"Archivo"; font-weight:900; font-size:1.05rem; text-align:right; padding-right:14px; }
 .sg-val span { display:block; font-size:.56rem; font-weight:600; color:var(--muted); letter-spacing:.4px; text-transform:uppercase; }
+
+/* ===== matchup simulator ===== */
+.mu-bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:6px 0 16px; }
+.mu-score { font-family:"Archivo"; font-weight:900; font-size:2.4rem; line-height:1;
+  display:flex; align-items:baseline; justify-content:center; gap:8px; }
+.mu-score span { font-size:1.4rem; color:var(--muted); }
+.mu-score small { font-size:.8rem; font-weight:600; color:var(--muted); margin-left:4px; }
+.mu-verdict { text-align:center; font-weight:800; font-size:1rem; margin-top:4px; }
+.mu-games { text-align:center; font-size:.76rem; color:var(--muted); margin:2px 0 14px; }
+.mu-head { display:grid; grid-template-columns:1fr 56px 1fr; gap:6px; padding:0 4px 6px;
+  font-size:.64rem; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); font-weight:700; }
+.mu-head span:first-child { text-align:left; }
+.mu-head span:last-child { text-align:right; }
+.mu-head span:nth-child(2) { text-align:center; }
+.mu-rows { display:flex; flex-direction:column; gap:4px; }
+.mu-row { display:grid; grid-template-columns:1fr 56px 1fr; gap:6px; align-items:center;
+  padding:7px 10px; border-radius:9px; background:rgba(255,255,255,.03);
+  border:1px solid var(--panel-brd); font-variant-numeric:tabular-nums; }
+.mu-a { text-align:left; font-weight:800; font-size:.9rem; }
+.mu-b { text-align:right; font-weight:800; font-size:.9rem; }
+.mu-cat { text-align:center; font-size:.66rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.4px; color:var(--muted); }
+.mu-row.mu-win  .mu-a { color:var(--good); }
+.mu-row.mu-win  { border-color:rgba(68,208,123,.3); background:rgba(68,208,123,.06); }
+.mu-row.mu-loss .mu-b { color:var(--bad); }
+.mu-row.mu-loss { border-color:rgba(255,92,108,.3); background:rgba(255,92,108,.06); }
+.mu-row.mu-tie  .mu-a, .mu-row.mu-tie .mu-b { color:var(--gold); }
