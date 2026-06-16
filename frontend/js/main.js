@@ -212,6 +212,37 @@ function initCounters() {
     if (e.isIntersecting) { run(e.target); obs.unobserve(e.target); } }));
   document.querySelectorAll(".hero-stats b[data-count]").forEach((n) => io.observe(n));
 }
+// Hero visual: a fanned stack of the live top-3 by total z (glassy cards with
+// a category equalizer); click opens the player modal.
+function renderHeroCards() {
+  const wrap = document.getElementById("hero-stack");
+  if (!wrap || !rawPlayers.length) return;
+  const top = computeBoard().slice(0, 3);
+  const cats = [["pts", "P"], ["reb", "R"], ["ast", "A"], ["stl", "S"], ["blk", "B"]];
+  wrap.innerHTML = top.map((p, i) => {
+    const bars = cats.map(([k, lab]) => {
+      const z = p.z?.[k] ?? 0;
+      const h = Math.max(6, Math.min(100, ((z + 2) / 5) * 100));
+      const col = z >= 0 ? "var(--good)" : "var(--bad)";
+      return `<span class="hvb"><i style="height:${h.toFixed(0)}%;background:${col}"></i><em>${lab}</em></span>`;
+    }).join("");
+    return `<button class="hv-card" data-id="${esc(p.id)}" style="--i:${i}" aria-label="View ${esc(p.name)}">
+      <span class="hv-top">
+        <span class="hv-rank">${p.rank}</span>
+        ${avatarHTML(p, "hv-av")}
+        <span class="hv-info">
+          <span class="hv-name">${esc(p.name)}</span>
+          <span class="hv-team">${teamLogo(p.team)}${esc(p.team || "")} · ${esc(p.pos || "")}</span>
+        </span>
+        <span class="hv-z ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}</span>
+      </span>
+      <span class="hv-bars">${bars}</span>
+    </button>`;
+  }).join("");
+  wrap.querySelectorAll(".hv-card[data-id]").forEach((el) =>
+    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+}
+
 // Override a hero counter with the real, data-driven value once loaded.
 function setHeroStat(id, n) {
   const el = document.getElementById(id);
@@ -357,6 +388,7 @@ async function load() {
     renderLeaders();
     renderPlayerGrid("");
     renderMyTeam();
+    renderHeroCards();
     fetchAdvanced(); // fire-and-forget; populates advancedData for modals
   } catch (err) {
     rawPlayers = [];
