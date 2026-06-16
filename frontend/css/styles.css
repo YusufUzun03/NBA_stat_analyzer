@@ -821,3 +821,70 @@ select { cursor:pointer; min-width:120px; }
   cursor:pointer; padding:0; transition:color .2s;
 }
 .mt-remove:hover { color:var(--bad); }
+
+/* weekly projection panel */
+.wp-panel { margin-top:16px; }
+.wp-meta { font-size:.84rem; color:var(--muted); margin-bottom:14px; }
+.wp-meta b { color:var(--ink); }
+.wp-bye { color:var(--gold); }
+.wp-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(74px,1fr)); gap:9px; }
+.wp-cell {
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:11px 6px; border-radius:11px; border:1px solid var(--panel-brd);
+  background:rgba(58,109,240,.07);
+}
+.wp-cell b { font-family:"Archivo"; font-weight:900; font-size:1.3rem; color:var(--ink); }
+.wp-cell span { font-size:.64rem; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+.wp-inv { background:rgba(255,92,108,.07); }
+
+/* ===== positional rankings ===== */
+.pos-rank-grid {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px;
+}
+.pr-card {
+  background:var(--panel); border:1px solid var(--panel-brd);
+  border-radius:var(--radius); padding:14px 14px 8px;
+}
+.pr-head {
+  display:flex; align-items:center; gap:8px; font-weight:800; font-size:.9rem;
+  padding-bottom:10px; margin-bottom:6px; border-bottom:1px solid var(--panel-brd);
+}
+.pr-pos {
+  font-family:"Archivo"; font-weight:900; font-size:.72rem; color:var(--orange-2);
+  background:rgba(238,103,48,.13); padding:2px 7px; border-radius:6px;
+}
+.pr-ct { margin-left:auto; color:var(--muted); font-weight:600; font-size:.78rem; }
+.pr-row {
+  display:grid; grid-template-columns:20px 1fr auto 44px 38px; align-items:center;
+  gap:7px; padding:5px 2px; font-size:.82rem;
+}
+.pr-row + .pr-row { border-top:1px solid rgba(255,255,255,.04); }
+.pr-rk { color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; }
+.pr-name { font-weight:600; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pr-name:hover { color:var(--orange-2); }
+.pr-team { color:var(--muted); font-size:.72rem; }
+.pr-tot { font-variant-numeric:tabular-nums; font-weight:800; text-align:right; }
+.pr-ov { color:var(--muted); font-size:.7rem; text-align:right; font-variant-numeric:tabular-nums; }
+
+/* ===== consistency / boom-bust card (Recent Form tab) ===== */
+.cons-card {
+  background:var(--panel); border:1px solid var(--panel-brd);
+  border-radius:14px; padding:14px 16px; margin-bottom:16px;
+}
+.cons-head { display:flex; align-items:center; gap:10px; font-weight:800;
+  font-size:.72rem; letter-spacing:.5px; text-transform:uppercase; margin-bottom:12px; }
+.cons-badge { font-size:.66rem; font-weight:800; letter-spacing:.4px;
+  padding:3px 9px; border-radius:7px; text-transform:none; }
+.cons-good { color:var(--good); background:rgba(68,208,123,.14); }
+.cons-warn { color:var(--gold); background:rgba(255,194,75,.14); }
+.cons-bad  { color:var(--bad);  background:rgba(255,92,108,.14); }
+.cons-stats { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+.cons-stat { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.cons-stat b { font-family:"Archivo"; font-weight:900; font-size:1.18rem; }
+.cons-stat span { font-size:.62rem; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+.cons-meter { height:7px; border-radius:5px; background:rgba(255,255,255,.06); margin:13px 0 8px; overflow:hidden; }
+.cons-meter i { display:block; height:100%; border-radius:5px; transition:width .4s ease; }
+.cons-good-bar { background:var(--good); }
+.cons-warn-bar { background:var(--gold); }
+.cons-bad-bar  { background:var(--bad); }
+.cons-foot { font-size:.68rem; color:var(--muted); line-height:1.4; }

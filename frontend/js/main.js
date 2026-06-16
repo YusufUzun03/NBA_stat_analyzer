@@ -443,7 +443,38 @@ function initTools() {
   const psearch = document.getElementById("player-search");
   if (psearch) psearch.addEventListener("input", () => renderPlayerGrid(psearch.value.trim()));
 }
-function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); }
+function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); }
+
+/* ---- positional rankings ---- */
+const POS_META = [
+  { k: "PG", l: "Point Guards" },
+  { k: "SG", l: "Shooting Guards" },
+  { k: "SF", l: "Small Forwards" },
+  { k: "PF", l: "Power Forwards" },
+  { k: "C",  l: "Centers" },
+];
+function renderPositions() {
+  const grid = document.getElementById("pos-rank-grid");
+  if (!grid || !rawPlayers.length) return;
+  const board = computeBoard();        // punt-aware .total + overall .rank
+  grid.innerHTML = POS_META.map((pos) => {
+    const all = board.filter((p) => (p.pos || "").toUpperCase() === pos.k);
+    const list = all.slice(0, 12);
+    return `<div class="pr-card">
+      <div class="pr-head"><span class="pr-pos">${pos.k}</span>${pos.l}<span class="pr-ct">${all.length}</span></div>
+      ${list.map((p, i) => `
+        <div class="pr-row">
+          <span class="pr-rk">${i + 1}</span>
+          <span class="pr-name" data-id="${esc(p.id)}" title="View details">${esc(p.name)}</span>
+          <span class="pr-team">${esc(p.team || "")}</span>
+          <span class="pr-tot ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}</span>
+          <span class="pr-ov" title="Overall rank">#${p.rank}</span>
+        </div>`).join("")}
+    </div>`;
+  }).join("");
+  grid.querySelectorAll(".pr-name[data-id]").forEach((el) =>
+    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+}
 
 /* ---- reusable autocomplete ---- */
 function attachAC(acEl, onPick) {
@@ -602,6 +633,7 @@ function renderSchedule() {
       (t.b2b ? `<div class="sc-b2b">${t.b2b} back-to-back${t.b2b > 1 ? "s" : ""}</div>` : "") +
       `<div class="sc-dates">${t.dates.map((d) => d.slice(5)).join(" · ")}</div></div>`;
   }).join("");
+  renderMyTeam();   // refresh the roster's weekly projection for the new week
 }
 function gamesPerWeek(games, anchor) {
   const [mon, sun] = weekBounds(anchor), ms = fmtDate(mon), ss = fmtDate(sun);
@@ -1166,6 +1198,7 @@ function renderRecentTab(p, allGames, tabBody, n) {
 
   const sparkSvg = recentSparkline(games);
   const splits = splitsCard(avgStats, seasonAvg, n);
+  const cons = consistencyCard(allGames);   // computed over the full season for a stable read
 
   tabBody.innerHTML = `
     <div class="recent-n-toggle">
@@ -1173,6 +1206,7 @@ function renderRecentTab(p, allGames, tabBody, n) {
         `<button class="rnt-btn${x === n ? " active" : ""}" data-n="${x}">Last ${x}</button>`
       ).join("")}
     </div>
+    ${cons}
     ${splits}
     ${sparkSvg ? `<div class="career-spark">${sparkSvg}</div>` : ""}
     <div class="career-table-wrap">
@@ -1216,6 +1250,40 @@ function splitsCard(avgStats, seasonAvg, n) {
   }).join("");
   return `<div class="splits-head">Last ${n} vs season average</div>
     <div class="splits-grid">${chips}</div>`;
+}
+
+/* Consistency / boom-bust — a points-league fantasy score per game, then the
+   coefficient of variation (std ÷ mean). Low CV = a steady floor you can rely
+   on; high CV = a boom-or-bust night-to-night player. */
+const fpScore = (g) => (g.pts ?? 0) + 1.2 * (g.reb ?? 0) + 1.5 * (g.ast ?? 0)
+  + 3 * (g.stl ?? 0) + 3 * (g.blk ?? 0) + 2 * (g.tpm ?? 0) - (g.tov ?? 0);
+
+function consistencyCard(allGames) {
+  const vals = allGames.map(fpScore).filter((v) => Number.isFinite(v));
+  if (vals.length < 4) return "";
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+  const cv = mean > 0 ? std / mean : 1;
+  const max = Math.max(...vals), min = Math.min(...vals);
+  const aboveAvg = vals.filter((v) => v >= mean).length;
+  const r = cv < 0.28 ? { t: "Rock solid", cls: "good" }
+    : cv < 0.40 ? { t: "Consistent", cls: "good" }
+    : cv < 0.55 ? { t: "Streaky", cls: "warn" }
+    : { t: "Boom / bust", cls: "bad" };
+  // CV fills a 0–0.7 meter (clamped); lower fill = steadier.
+  const meter = Math.max(4, Math.min(100, (cv / 0.7) * 100)).toFixed(0);
+  return `<div class="cons-card">
+    <div class="cons-head">Consistency <span class="cons-badge cons-${r.cls}">${r.t}</span></div>
+    <div class="cons-stats">
+      <div class="cons-stat"><b>${mean.toFixed(1)}</b><span>avg FP</span></div>
+      <div class="cons-stat"><b>±${std.toFixed(1)}</b><span>std dev</span></div>
+      <div class="cons-stat"><b>${min.toFixed(0)}</b><span>floor</span></div>
+      <div class="cons-stat"><b>${max.toFixed(0)}</b><span>ceiling</span></div>
+      <div class="cons-stat"><b>${Math.round(aboveAvg / vals.length * 100)}%</b><span>games ≥ avg</span></div>
+    </div>
+    <div class="cons-meter"><i class="cons-${r.cls}-bar" style="width:${meter}%"></i></div>
+    <div class="cons-foot">FP = PTS + 1.2·REB + 1.5·AST + 3·STL + 3·BLK + 2·3PM − TOV · ${vals.length} games · variation ${(cv * 100).toFixed(0)}%</div>
+  </div>`;
 }
 
 function recentSparkline(games) {
@@ -1329,6 +1397,43 @@ function applyPuntBuild(keys) {
   document.getElementById("rankings")?.scrollIntoView({ behavior: "smooth" });
 }
 
+// Projected weekly category production for the roster: per-game raw stats ×
+// games each player's team plays in the schedule's selected week. Ties the
+// roster to the schedule so you can see what a light/heavy week looks like.
+const PROJ_CATS = [
+  { k: "pts", l: "PTS" }, { k: "reb", l: "REB" }, { k: "ast", l: "AST" },
+  { k: "stl", l: "STL" }, { k: "blk", l: "BLK" }, { k: "tpm", l: "3PM" },
+  { k: "tov", l: "TOV", inv: true },
+];
+function weeklyProjectionPanel(roster) {
+  if (!scheduleGames.length) return "";
+  const anchor = document.getElementById("wk-date")?.value || "2026-01-12";
+  const wk = gamesPerWeek(scheduleGames, anchor);
+  const gmap = {};
+  wk.teams.forEach((t) => (gmap[t.team] = t.games));
+  let totGames = 0;
+  const proj = {}; PROJ_CATS.forEach((c) => (proj[c.k] = 0));
+  const contributors = roster.filter((p) => gmap[p.team]);
+  roster.forEach((p) => {
+    const g = gmap[p.team] || 0;
+    totGames += g;
+    PROJ_CATS.forEach((c) => (proj[c.k] += (p.stats?.[c.k] ?? 0) * g));
+  });
+  const cells = totGames
+    ? PROJ_CATS.map((c) =>
+        `<div class="wp-cell${c.inv ? " wp-inv" : ""}"><b>${Math.round(proj[c.k])}</b><span>${c.l}</span></div>`
+      ).join("")
+    : "";
+  const body = totGames
+    ? `<div class="wp-meta">${wk.weekStart} → ${wk.weekEnd} · <b>${totGames}</b> total games · ${contributors.length}/${roster.length} players active${roster.length - contributors.length ? ` <span class="wp-bye">(${roster.length - contributors.length} on bye)</span>` : ""}</div>
+       <div class="wp-grid">${cells}</div>`
+    : `<div class="wp-meta">${wk.weekStart} → ${wk.weekEnd} · no rostered teams play this week.</div>`;
+  return `<div class="mt-panel wp-panel">
+    <div class="mt-panel-h">Weekly projection <small>from the Schedule week below</small></div>
+    ${body}
+  </div>`;
+}
+
 function renderMyTeam() {
   const body = document.getElementById("myteam-body");
   if (!body) return;
@@ -1428,7 +1533,8 @@ function renderMyTeam() {
         <div class="mt-panel-h" style="margin-top:14px">Roster <small>${roster.length}</small></div>
         <div class="mt-roster">${chips}</div>
       </div>
-    </div>`;
+    </div>
+    ${weeklyProjectionPanel(roster)}`;
 
   body.querySelector(".mt-apply")?.addEventListener("click", () => applyPuntBuild(buildKeys));
   body.querySelectorAll(".mt-remove[data-star]").forEach((b) =>
