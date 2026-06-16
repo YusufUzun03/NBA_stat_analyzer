@@ -103,6 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTools();
   initModal();
   initHistoryTabs();
+  initHeroRotator();
   renderHistory();   // independent of the season/players data
   load();
 });
@@ -491,11 +492,25 @@ function relativeDate(iso) {
   return then.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 function showDataFreshness() {
+  const rel = usingSnapshot && dataGenerated ? relativeDate(dataGenerated) : "";
   const el = document.getElementById("data-updated");
-  if (!el) return;
-  if (usingSnapshot && dataGenerated) el.textContent = ` · data updated ${relativeDate(dataGenerated)}`;
-  else if (!usingSnapshot) el.textContent = " · live engine";
-  else el.textContent = "";
+  if (el) el.textContent = usingSnapshot && rel ? ` · data updated ${rel}` : (!usingSnapshot ? " · live engine" : "");
+  const hu = document.getElementById("hero-updated");
+  if (hu && rel) hu.textContent = rel;
+}
+
+/* hero headline rotator */
+const HERO_WORDS = ["for every punt build", "for smarter trades", "for sharper drafts",
+  "for weekly matchups", "for streaming", "across 26 seasons"];
+function initHeroRotator() {
+  const el = document.getElementById("hero-rot");
+  if (!el || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  let i = 0;
+  setInterval(() => {
+    i = (i + 1) % HERO_WORDS.length;
+    el.style.opacity = "0";
+    setTimeout(() => { el.textContent = HERO_WORDS[i]; el.style.opacity = "1"; }, 280);
+  }, 2600);
 }
 
 // Advanced stats — keyed by player id
@@ -717,6 +732,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 const getPlayer = (id) => rawPlayers.find((p) => p.id === id);
 
 function initTools() {
+  attachAC(document.querySelector('.ac[data-ac="hero"]'), (p) => openModal(p));
   attachAC(document.querySelector('.ac[data-ac="give"]'), (p) => addTrade("give", p.id));
   attachAC(document.querySelector('.ac[data-ac="get"]'), (p) => addTrade("get", p.id));
   attachAC(document.querySelector('.ac[data-ac="punt"]'), (p) => { puntFitId = p.id; renderPuntFit(); });
