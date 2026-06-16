@@ -759,11 +759,11 @@ function initTools() {
 function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); renderTiers(); }
 
 /* ---- NBA history hub (champions, awards, All-NBA, leaders, HOF, standings) ---- */
-let historyData = null, standingsData = null;
+let historyData = null, standingsData = null, playoffsData = null;
 let histTab = "champions";
 let histAwardKey = "mvp";
 let histChampsAll = false, histHofAll = false, histAllNbaAll = false;
-let histStandingsSeason = null;
+let histStandingsSeason = null, histPoSeason = null;
 async function loadHistory() {
   if (historyData) return historyData;
   try { const r = await fetch("data/history.json"); if (r.ok) historyData = await r.json(); } catch {}
@@ -774,6 +774,12 @@ async function loadStandings() {
   try { const r = await fetch("data/standings.json"); if (r.ok) standingsData = await r.json(); } catch {}
   return standingsData;
 }
+async function loadPlayoffs() {
+  if (playoffsData) return playoffsData;
+  try { const r = await fetch("data/playoffs.json"); if (r.ok) playoffsData = await r.json(); } catch {}
+  return playoffsData;
+}
+const PO_STAGES = ["First Round", "Conf Semifinals", "Conf Finals", "Finals"];
 function initHistoryTabs() {
   const tabs = document.getElementById("hist-tabs");
   tabs?.addEventListener("click", (e) => {
@@ -861,6 +867,33 @@ async function renderHistory() {
       `</select><span class="hist-aw-label" style="margin:0">Top 8 make the playoffs</span></div>` +
       `<div class="stand-grid">${confTable("Eastern", sel.East)}${confTable("Western", sel.West)}</div>`;
     document.getElementById("stand-season")?.addEventListener("change", (e) => { histStandingsSeason = e.target.value; renderHistory(); });
+
+  } else if (histTab === "playoffs") {
+    body.innerHTML = `<div class="board-loading">Loading bracket…</div>`;
+    const p = await loadPlayoffs();
+    if (!p) { body.innerHTML = '<div class="board-loading">Playoffs unavailable.</div>'; return; }
+    const seasons = Object.keys(p.seasons);
+    if (!histPoSeason || !p.seasons[histPoSeason])
+      histPoSeason = p.seasons[state.season] ? state.season : seasons[0];
+    const series = p.seasons[histPoSeason] || [];
+    const seriesEl = (s) => {
+      const ws = s.score.split("-")[0];
+      return `<div class="po-series">
+        <div class="po-team win">${teamLogo(s.winner_abbr)}<span>${esc(s.winner)}</span><b>${esc(ws)}</b></div>
+        <div class="po-team">${teamLogo(s.loser_abbr)}<span>${esc(s.loser)}</span><b>${esc(s.score.split("-")[1])}</b></div>
+      </div>`;
+    };
+    const col = (stage) => {
+      const inStage = series.filter((s) => s.stage === stage)
+        .sort((a, b) => (a.conf > b.conf ? 1 : -1));
+      return `<div class="po-col"><div class="po-col-h">${esc(stage)}</div>${inStage.map(seriesEl).join("")}</div>`;
+    };
+    body.innerHTML =
+      `<div class="stand-bar"><label>Season</label><select id="po-season">` +
+        seasons.map((yr) => `<option ${yr === histPoSeason ? "selected" : ""}>${yr}</option>`).join("") +
+      `</select></div>` +
+      `<div class="po-bracket">${PO_STAGES.map(col).join("")}</div>`;
+    document.getElementById("po-season")?.addEventListener("change", (e) => { histPoSeason = e.target.value; renderHistory(); });
   }
 }
 

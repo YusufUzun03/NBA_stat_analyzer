@@ -1209,3 +1209,18 @@ select { cursor:pointer; min-width:120px; }
 .stand-team .tlogo { width:18px; height:18px; margin:0; flex-shrink:0; }
 .stand-rec { font-variant-numeric:tabular-nums; font-weight:700; }
 .stand-pct { color:var(--muted); font-variant-numeric:tabular-nums; font-size:.78rem; min-width:42px; text-align:right; }
+
+/* playoff bracket */
+.po-bracket { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(190px,1fr); gap:14px; overflow-x:auto; padding-bottom:6px; }
+.po-col { display:flex; flex-direction:column; justify-content:space-around; gap:10px; }
+.po-col-h { font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
+  font-weight:800; text-align:center; padding-bottom:4px; }
+.po-series { background:rgba(255,255,255,.03); border:1px solid var(--panel-brd); border-radius:10px; overflow:hidden; }
+.po-team { display:grid; grid-template-columns:18px 1fr auto; align-items:center; gap:7px;
+  padding:7px 9px; font-size:.8rem; }
+.po-team .tlogo { width:18px; height:18px; margin:0; }
+.po-team span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.po-team b { font-variant-numeric:tabular-nums; color:var(--muted); }
+.po-team.win { background:rgba(68,208,123,.08); font-weight:700; }
+.po-team.win b { color:var(--good); }
+.po-team:not(.win) span { color:var(--muted); }
