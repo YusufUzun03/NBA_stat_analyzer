@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://yusufuzun03.github.io/NBA_stat_analyzer/sitemap.xml

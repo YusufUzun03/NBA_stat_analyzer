@@ -1,30 +1,39 @@
-# BoxScore — NBA Fantasy Stat Analyzer
+# 🏀 BoxScore — NBA Fantasy Stat Analyzer
 
-A fantasy-basketball analytics tool built around the **9-category z-score engine** that powers
-the best fantasy tools (Hashtag Basketball, Basketball Monster, FantaZscores), plus a live
-**punt-strategy analyzer**, a **trade analyzer**, **rest-of-season projections**, and a
-**games-per-week / streaming** matchup tool.
+**▶ Live app: https://yusufuzun03.github.io/NBA_stat_analyzer/**
 
-- **Backend** (this repo): Python + FastAPI. Pulls live data from
-  [basketball-reference.com](https://www.basketball-reference.com) (free, no API key,
-  globally reachable) and exposes a clean JSON API. Player ids are basketball-reference
-  slugs (e.g. `jokicni01`).
-- **Frontend**: designed separately (Claude Design) and consumes the API documented in
-  [`API.md`](./API.md).
+A free, fast fantasy-basketball analytics app built around the **9-category z-score engine**
+that powers the pro tools (Hashtag Basketball, Basketball Monster, FantaZscores) — plus punt
+builds, trades, draft tiers, matchups, streaming and 25+ seasons of per-game stats. No login,
+no API key; it runs entirely from static data snapshots that refresh nightly.
 
-> **Data-source note:** `stats.nba.com` is geo-fenced to the US and times out from many
-> regions, so this project sources data from basketball-reference instead, which works
-> worldwide. Responses are cached under `cache/` (12h TTL) to stay polite to BR.
+> Not affiliated with the NBA or Sports Reference LLC. Data from
+> [basketball-reference.com](https://www.basketball-reference.com); for fantasy &
+> informational use only.
 
-## Features (v1)
+## Features
 
 | Feature | What it does |
 |---|---|
-| 9-cat z-score rankings | Ranks players by total z-score across FG%, FT%, 3PM, PTS, REB, AST, STL, BLK, TOV. Percentages are volume-weighted. |
-| Punt analyzer | Drop any categories you're punting; everything re-ranks live. |
-| Trade analyzer | Compare players given vs received; per-category deltas + a letter grade. |
-| Rest-of-season projections | v1 baseline = season-to-date line + z-value (a recent-form blend hook is in place for a future upgrade). |
-| Matchup / schedule | Games per team per week, back-to-backs, and top streaming targets. |
+| 9-cat z-score rankings | Ranks players by total z across FG%, FT%, 3PM, PTS, REB, AST, STL, BLK, TOV (percentages volume-weighted). Toggle **Z-score ⇄ per-game** to see real numbers. |
+| Seasons 2000-01 → today | Browse any season back to 2000-01 from the season dropdown. |
+| Punt analyzer + presets | Drop categories you're punting; everything re-ranks live. One-click common builds. |
+| Draft tiers | Rosterable pool grouped into value tiers — a printable snake-draft cheat sheet. |
+| Positional rankings | Top values at each position (PG/SG/SF/PF/C). |
+| Trade analyzer | Compare both sides category-by-category with a letter grade. |
+| My Team | Star players → category strengths, recommended punt build, weekly projection. |
+| Matchup simulator | Project a head-to-head week and a category score (e.g. 6–3). |
+| Schedule & streamers | Weekly Mon–Sun calendar, back-to-backs, and best schedule-weighted pickups. |
+| Player profiles | Photo, advanced stats, radar, career table, recent form + a consistency (boom/bust) rating. |
+
+## How it's hosted
+
+- **Frontend**: a static site (`frontend/`) served by **GitHub Pages** — the public app. It
+  reads JSON snapshots in `frontend/data/`, so it needs no server at runtime.
+- **Backend** (`backend/`): Python + FastAPI. Used locally and by the data pipeline to scrape
+  basketball-reference and generate those snapshots; **not** deployed publicly.
+- **Auto-refresh**: GitHub Actions regenerate the snapshots and redeploy (see
+  *Keeping the data fresh* below), so the live app stays current without manual work.
 
 ## Quick start
 
@@ -98,6 +107,11 @@ backend/
       projections.py   rest-of-season heuristic
       schedule.py      games-per-week / streaming
   tests/               z-score math tests
-frontend/              (your Claude-designed UI)
+frontend/              static GitHub Pages app (the public site)
 cache/                 runtime data cache (gitignored)
 ```
+
+## License
+
+[MIT](./LICENSE). Data is the property of basketball-reference.com / Sports Reference LLC;
+BoxScore is an independent, unaffiliated project.
