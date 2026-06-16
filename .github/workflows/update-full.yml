@@ -52,6 +52,7 @@ jobs:
           python scripts/gen_career.py
           python scripts/gen_gamelog.py
           python scripts/gen_history.py
+          python scripts/gen_standings.py
           python scripts/gen_manifest.py
 
       - name: Commit updated data

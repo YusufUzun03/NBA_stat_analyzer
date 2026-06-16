@@ -368,18 +368,16 @@
   <!-- ===================== HISTORY ===================== -->
   <section class="section" id="history">
     <h2 class="section-title reveal">NBA history</h2>
-    <p class="section-lead reveal">Champions, Finals MVPs and the major individual awards, season by season — straight from basketball-reference.</p>
-    <div class="hist-grid reveal">
-      <div class="hist-panel">
-        <div class="hist-h">🏆 Champions</div>
-        <div class="hist-list" id="hist-champs"><div class="board-loading">Loading…</div></div>
-      </div>
-      <div class="hist-panel">
-        <div class="hist-h">🏅 Award winners</div>
-        <div class="seg" id="hist-awards-seg" role="group" aria-label="Award"></div>
-        <div class="hist-list" id="hist-awards"></div>
-      </div>
+    <p class="section-lead reveal">Champions, awards, All-NBA teams, all-time leaders, the Hall of Fame and full standings — straight from basketball-reference.</p>
+    <div class="seg hist-tabs reveal" id="hist-tabs" role="group" aria-label="History section">
+      <button class="seg-btn active" data-tab="champions" type="button">🏆 Champions</button>
+      <button class="seg-btn" data-tab="awards" type="button">🏅 Awards</button>
+      <button class="seg-btn" data-tab="allnba" type="button">All-NBA</button>
+      <button class="seg-btn" data-tab="leaders" type="button">All-time leaders</button>
+      <button class="seg-btn" data-tab="hof" type="button">Hall of Fame</button>
+      <button class="seg-btn" data-tab="standings" type="button">Standings</button>
     </div>
+    <div class="hist-body reveal" id="hist-body"><div class="board-loading">Loading…</div></div>
   </section>
 
   <!-- ===================== HOW ===================== -->

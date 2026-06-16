@@ -21,8 +21,80 @@ from pathlib import Path
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 from app.data.nba_client import _get_html
+
+
+def _soup_all(url: str) -> BeautifulSoup:
+    """Parse a BR page, also surfacing tables hidden inside HTML comments."""
+    s = BeautifulSoup(_get_html(url), "lxml")
+    for c in s.find_all(string=lambda t: isinstance(t, Comment)):
+        if "<table" in c:
+            try: s.append(BeautifulSoup(c, "lxml"))
+            except Exception: pass
+    return s
+
+
+LEADER_STATS = [
+    ("pts", "Points"), ("trb", "Rebounds"), ("ast", "Assists"),
+    ("stl", "Steals"), ("blk", "Blocks"), ("fg3", "3-Pointers"),
+]
+
+
+def scrape_leaders() -> dict:
+    out = {}
+    for slug, label in LEADER_STATS:
+        time.sleep(3)
+        try:
+            t = _soup_all(f"https://www.basketball-reference.com/leaders/{slug}_career.html").find("table", id="nba")
+            rows = []
+            for tr in t.find_all("tr"):
+                cells = tr.find_all(["td", "th"])
+                if len(cells) < 3 or not tr.find("a"):
+                    continue
+                player = tr.find("a").get_text(strip=True)
+                value = cells[-1].get_text(strip=True)
+                rows.append({"player": player, "value": value})
+                if len(rows) >= 10:
+                    break
+            out[slug] = {"label": label, "rows": rows}
+            print(f"  leaders {slug}: {len(rows)}")
+        except Exception as exc:
+            print(f"  leaders {slug} failed: {exc}")
+    return out
+
+
+def scrape_hof() -> list[dict]:
+    t = _soup_all("https://www.basketball-reference.com/awards/hof.html").find("table", id="hof")
+    out = []
+    for tr in (t.find("tbody") or t).find_all("tr"):
+        cells = {td.get("data-stat"): td for td in tr.find_all(["td", "th"])}
+        cat = cells["category"].get_text(strip=True) if "category" in cells else ""
+        nc = cells.get("name_full")
+        a = nc.find("a") if nc else None
+        # NBA/ABA players only: their name links to a /players/ page (excludes
+        # WNBA, college-only and contributor inductees).
+        if cat != "Player" or not a or "/players/" not in (a.get("href") or ""):
+            continue
+        year = cells["year_id"].get_text(strip=True) if "year_id" in cells else ""
+        out.append({"name": a.get_text(strip=True), "year": year})
+    return out
+
+
+def scrape_all_nba() -> list[dict]:
+    t = _soup_all("https://www.basketball-reference.com/awards/all_league.html").find("table", id="awards_all_league")
+    out = []
+    for tr in (t.find("tbody") or t).find_all("tr"):
+        c = {td.get("data-stat"): td for td in tr.find_all(["td", "th"])}
+        txt = lambda k: c[k].get_text(" ", strip=True) if k in c else ""
+        if txt("lg_id") != "NBA":
+            continue
+        season, team = txt("season"), txt("all_team")
+        players = [txt(str(i)) for i in range(1, 6) if txt(str(i))]
+        if not season or not players:
+            continue
+        out.append({"season": season, "team": team, "players": players})
+    return out
 
 OUT = Path(__file__).parent.parent.parent / "frontend" / "data" / "history.json"
 AWARDS = [
@@ -111,6 +183,21 @@ def main() -> None:
         except Exception as exc:
             print(f"  failed: {exc}")
 
+    print("Scraping all-time leaders…")
+    leaders = scrape_leaders()
+    time.sleep(3)
+    print("Scraping Hall of Fame…")
+    try:
+        hof = scrape_hof(); print(f"  {len(hof)} players")
+    except Exception as exc:
+        hof = []; print(f"  failed: {exc}")
+    time.sleep(3)
+    print("Scraping All-NBA teams…")
+    try:
+        all_nba = scrape_all_nba(); print(f"  {len(all_nba)} team-seasons")
+    except Exception as exc:
+        all_nba = []; print(f"  failed: {exc}")
+
     if not champions and not awards:
         print("Nothing scraped — leaving existing history untouched.")
         return
@@ -122,6 +209,9 @@ def main() -> None:
         "champions": champions,
         "award_labels": labels,
         "awards": awards,
+        "leaders": leaders,
+        "hof": hof,
+        "all_nba": all_nba,
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {OUT} ({OUT.stat().st_size/1024:.0f} KB)")
 

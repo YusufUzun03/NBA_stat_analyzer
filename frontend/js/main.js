@@ -102,6 +102,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initControls();
   initTools();
   initModal();
+  initHistoryTabs();
   renderHistory();   // independent of the season/players data
   load();
 });
@@ -741,47 +742,110 @@ function initTools() {
 }
 function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); renderTiers(); }
 
-/* ---- NBA history (champions + awards) ---- */
-let historyData = null;
+/* ---- NBA history hub (champions, awards, All-NBA, leaders, HOF, standings) ---- */
+let historyData = null, standingsData = null;
+let histTab = "champions";
 let histAwardKey = "mvp";
-let histChampsAll = false;
+let histChampsAll = false, histHofAll = false, histAllNbaAll = false;
+let histStandingsSeason = null;
 async function loadHistory() {
   if (historyData) return historyData;
   try { const r = await fetch("data/history.json"); if (r.ok) historyData = await r.json(); } catch {}
   return historyData;
 }
+async function loadStandings() {
+  if (standingsData) return standingsData;
+  try { const r = await fetch("data/standings.json"); if (r.ok) standingsData = await r.json(); } catch {}
+  return standingsData;
+}
+function initHistoryTabs() {
+  const tabs = document.getElementById("hist-tabs");
+  tabs?.addEventListener("click", (e) => {
+    const b = e.target.closest(".seg-btn[data-tab]");
+    if (!b) return;
+    histTab = b.dataset.tab;
+    tabs.querySelectorAll(".seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+    renderHistory();
+  });
+}
+const histRows = (arr) => arr.join("");
+const histRow = (season, main, sub) =>
+  `<div class="hist-row"><span class="hist-season">${esc(season)}</span><span class="hist-main">${main}</span><span class="hist-sub">${sub}</span></div>`;
+const moreBtn = (id, expanded, total) =>
+  `<button class="btn btn-ghost hist-more" id="${id}" type="button">${expanded ? "Show less" : "Show all " + total}</button>`;
+
 async function renderHistory() {
-  const champsEl = document.getElementById("hist-champs");
-  const awardsEl = document.getElementById("hist-awards");
-  const seg = document.getElementById("hist-awards-seg");
-  if (!champsEl) return;
+  const body = document.getElementById("hist-body");
+  if (!body) return;
   const h = await loadHistory();
-  if (!h) { champsEl.innerHTML = '<div class="board-loading">History unavailable.</div>'; return; }
+  if (!h) { body.innerHTML = '<div class="board-loading">History unavailable.</div>'; return; }
 
-  const champs = histChampsAll ? h.champions : h.champions.slice(0, 18);
-  champsEl.innerHTML = champs.map((c) => `
-    <div class="hist-row">
-      <span class="hist-season">${esc(c.season)}</span>
-      <span class="hist-main">${teamLogo(c.champion_abbr)}<b>${esc(c.champion)}</b></span>
-      <span class="hist-sub">def. ${esc(c.runner_up)}${c.finals_mvp ? ` · FMVP ${esc(c.finals_mvp)}` : ""}</span>
-    </div>`).join("") +
-    (h.champions.length > 18 ? `<button class="btn btn-ghost hist-more" id="hist-champ-more" type="button">${histChampsAll ? "Show less" : "Show all " + h.champions.length + " seasons"}</button>` : "");
-  champsEl.querySelector("#hist-champ-more")?.addEventListener("click", () => { histChampsAll = !histChampsAll; renderHistory(); });
+  if (histTab === "champions") {
+    const champs = histChampsAll ? h.champions : h.champions.slice(0, 20);
+    body.innerHTML = `<div class="hist-list wide">` + histRows(champs.map((c) =>
+      histRow(c.season, `${teamLogo(c.champion_abbr)}<b>${esc(c.champion)}</b>`,
+        `def. ${esc(c.runner_up)}${c.finals_mvp ? ` · FMVP ${esc(c.finals_mvp)}` : ""}`))) +
+      `</div>` + (h.champions.length > 20 ? moreBtn("h-more", histChampsAll, h.champions.length + " seasons") : "");
+    body.querySelector("#h-more")?.addEventListener("click", () => { histChampsAll = !histChampsAll; renderHistory(); });
 
-  const keys = Object.keys(h.awards || {});
-  if (!keys.includes(histAwardKey)) histAwardKey = keys[0] || "mvp";
-  if (seg) {
-    seg.innerHTML = keys.map((k) => `<button class="seg-btn${k === histAwardKey ? " active" : ""}" data-aw="${k}" type="button">${k.toUpperCase()}</button>`).join("");
-    seg.querySelectorAll(".seg-btn").forEach((b) => b.addEventListener("click", () => { histAwardKey = b.dataset.aw; renderHistory(); }));
+  } else if (histTab === "awards") {
+    const keys = Object.keys(h.awards || {});
+    if (!keys.includes(histAwardKey)) histAwardKey = keys[0];
+    const list = (h.awards || {})[histAwardKey] || [];
+    const label = (h.award_labels || {})[histAwardKey] || histAwardKey.toUpperCase();
+    body.innerHTML =
+      `<div class="seg hist-sub-seg">` + keys.map((k) =>
+        `<button class="seg-btn${k === histAwardKey ? " active" : ""}" data-aw="${k}" type="button">${k.toUpperCase()}</button>`).join("") + `</div>` +
+      `<div class="hist-aw-label">${esc(label)}</div><div class="hist-list wide">` +
+      histRows(list.map((w) => histRow(w.season, `<b>${esc(w.player)}</b>`, esc(w.team || "")))) + `</div>`;
+    body.querySelectorAll(".hist-sub-seg .seg-btn").forEach((b) =>
+      b.addEventListener("click", () => { histAwardKey = b.dataset.aw; renderHistory(); }));
+
+  } else if (histTab === "allnba") {
+    const all = h.all_nba || [];
+    const shown = histAllNbaAll ? all : all.slice(0, 18);
+    body.innerHTML = `<div class="hist-list wide">` + histRows(shown.map((t) =>
+      histRow(t.season, `<b>All-NBA ${esc(t.team)}</b>`, t.players.map(esc).join(" · ")))) +
+      `</div>` + (all.length > 18 ? moreBtn("h-more", histAllNbaAll, all.length + " teams") : "");
+    body.querySelector("#h-more")?.addEventListener("click", () => { histAllNbaAll = !histAllNbaAll; renderHistory(); });
+
+  } else if (histTab === "leaders") {
+    const L = h.leaders || {};
+    body.innerHTML = `<div class="hist-lead-grid">` + Object.keys(L).map((k) => `
+      <div class="ldr-card">
+        <div class="ldr-cat">${esc(L[k].label)} <small>all-time</small></div>
+        ${L[k].rows.map((r, i) => `<div class="ldr-row"><span class="ldr-rk">${i + 1}</span><span class="ldr-name">${esc(r.player)}</span><span class="ldr-val">${esc((+r.value).toLocaleString("en-US"))}</span></div>`).join("")}
+      </div>`).join("") + `</div>`;
+
+  } else if (histTab === "hof") {
+    const hof = h.hof || [];
+    const shown = histHofAll ? hof : hof.slice(0, 30);
+    body.innerHTML = `<div class="hof-grid">` + shown.map((p) =>
+      `<div class="hof-card"><b>${esc(p.name)}</b><span>Class of ${esc(p.year)}</span></div>`).join("") +
+      `</div>` + (hof.length > 30 ? moreBtn("h-more", histHofAll, hof.length + " inductees") : "");
+    body.querySelector("#h-more")?.addEventListener("click", () => { histHofAll = !histHofAll; renderHistory(); });
+
+  } else if (histTab === "standings") {
+    body.innerHTML = `<div class="board-loading">Loading standings…</div>`;
+    const s = await loadStandings();
+    if (!s) { body.innerHTML = '<div class="board-loading">Standings unavailable.</div>'; return; }
+    const seasons = Object.keys(s.seasons);
+    if (!histStandingsSeason || !s.seasons[histStandingsSeason])
+      histStandingsSeason = s.seasons[state.season] ? state.season : seasons[0];
+    const sel = s.seasons[histStandingsSeason] || { East: [], West: [] };
+    const confTable = (name, rows) => `<div class="stand-conf"><div class="stand-h">${name}</div>` +
+      rows.map((r) => `<div class="stand-row${+r.seed <= 8 ? " playoff" : ""}">
+        <span class="stand-seed">${esc(r.seed)}</span>
+        <span class="stand-team">${teamLogo(r.abbr)}${esc(r.team)}</span>
+        <span class="stand-rec">${esc(r.w)}–${esc(r.l)}</span>
+        <span class="stand-pct">${esc(r.pct)}</span></div>`).join("") + `</div>`;
+    body.innerHTML =
+      `<div class="stand-bar"><label>Season</label><select id="stand-season">` +
+        seasons.map((yr) => `<option ${yr === histStandingsSeason ? "selected" : ""}>${yr}</option>`).join("") +
+      `</select><span class="hist-aw-label" style="margin:0">Top 8 make the playoffs</span></div>` +
+      `<div class="stand-grid">${confTable("Eastern", sel.East)}${confTable("Western", sel.West)}</div>`;
+    document.getElementById("stand-season")?.addEventListener("change", (e) => { histStandingsSeason = e.target.value; renderHistory(); });
   }
-  const list = (h.awards || {})[histAwardKey] || [];
-  const label = (h.award_labels || {})[histAwardKey] || histAwardKey.toUpperCase();
-  awardsEl.innerHTML = `<div class="hist-aw-label">${esc(label)}</div>` + list.map((w) => `
-    <div class="hist-row">
-      <span class="hist-season">${esc(w.season)}</span>
-      <span class="hist-main"><b>${esc(w.player)}</b></span>
-      <span class="hist-sub">${esc(w.team || "")}</span>
-    </div>`).join("");
 }
 
 /* ---- draft tiers (snake-draft cheat sheet) ---- */
