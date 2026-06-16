@@ -92,15 +92,53 @@
     </div>
 
     <div class="hero-ball">
-      <!-- Pure-CSS basketball: clean fixed seams + a gentle float (one cheap
-           transform). No WebGL, no per-frame JS, no blur filters → jank-free. -->
-      <div class="bball" aria-hidden="true">
-        <span class="bball-seam-v"></span>
-        <span class="bball-equator"></span>
-        <span class="bball-arc bball-arc-l"></span>
-        <span class="bball-arc bball-arc-r"></span>
-        <span class="bball-sphere"></span>
-      </div>
+      <!-- Realistic basketball: SVG with spherical shading, pebbled leather
+           grain (feTurbulence), seams, a specular highlight and rim falloff.
+           The grain is baked once; only a cheap float transform animates. -->
+      <svg class="bball" viewBox="0 0 400 400" role="img" aria-label="Basketball">
+        <defs>
+          <radialGradient id="bb-leather" cx="37%" cy="31%" r="75%">
+            <stop offset="0%" stop-color="#ffb86f"/>
+            <stop offset="30%" stop-color="#f57f37"/>
+            <stop offset="64%" stop-color="#dd591c"/>
+            <stop offset="100%" stop-color="#79310c"/>
+          </radialGradient>
+          <radialGradient id="bb-spec" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(255,240,216,0.9)"/>
+            <stop offset="48%" stop-color="rgba(255,226,192,0.22)"/>
+            <stop offset="100%" stop-color="rgba(255,226,192,0)"/>
+          </radialGradient>
+          <radialGradient id="bb-rim" cx="50%" cy="50%" r="50%">
+            <stop offset="58%" stop-color="rgba(0,0,0,0)"/>
+            <stop offset="90%" stop-color="rgba(45,15,0,0.22)"/>
+            <stop offset="100%" stop-color="rgba(28,9,0,0.62)"/>
+          </radialGradient>
+          <filter id="bb-grain-d" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="9" stitchTiles="stitch" result="n"/>
+            <feColorMatrix in="n" type="matrix"
+              values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 -0.2"/>
+          </filter>
+          <filter id="bb-grain-l" x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="4" stitchTiles="stitch" result="n"/>
+            <feColorMatrix in="n" type="matrix"
+              values="0 0 0 0 1  0 0 0 0 0.86  0 0 0 0 0.72  0 0 0 0.42 -0.14"/>
+          </filter>
+          <clipPath id="bb-clip"><circle cx="200" cy="200" r="185"/></clipPath>
+        </defs>
+        <g clip-path="url(#bb-clip)">
+          <circle cx="200" cy="200" r="185" fill="url(#bb-leather)"/>
+          <circle cx="200" cy="200" r="185" filter="url(#bb-grain-d)" style="mix-blend-mode:multiply" opacity="0.55"/>
+          <circle cx="200" cy="200" r="185" filter="url(#bb-grain-l)" style="mix-blend-mode:soft-light" opacity="0.5"/>
+          <g fill="none" stroke="#2a1406" stroke-width="6" stroke-linecap="round" opacity="0.95">
+            <path d="M200,15 L200,385"/>
+            <path d="M15,200 L385,200"/>
+            <path d="M200,15 C65,80 65,320 200,385"/>
+            <path d="M200,15 C335,80 335,320 200,385"/>
+          </g>
+          <ellipse cx="150" cy="126" rx="104" ry="70" fill="url(#bb-spec)"/>
+          <circle cx="200" cy="200" r="185" fill="url(#bb-rim)"/>
+        </g>
+      </svg>
       <div class="ball-shadow"></div>
     </div>
   </section>
