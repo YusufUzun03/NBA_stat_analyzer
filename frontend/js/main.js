@@ -565,6 +565,7 @@ function initTools() {
   initSchedule();
   initStreamers();
   initMatchup();
+  initTiers();
   // Phase 3: event delegation for player modal + compare buttons
   document.getElementById("rankTable").addEventListener("click", (e) => {
     const starBtn = e.target.closest(".star-btn[data-star]");
@@ -581,7 +582,57 @@ function initTools() {
     psearch.addEventListener("input", () => debouncedGrid(psearch.value.trim()));
   }
 }
-function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); }
+function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); renderTiers(); }
+
+/* ---- draft tiers (snake-draft cheat sheet) ---- */
+let tiersPool = 156;
+function initTiers() {
+  const slider = document.getElementById("tiers-pool");
+  const val = document.getElementById("tiersPoolVal");
+  if (slider) {
+    slider.value = tiersPool; if (val) val.textContent = tiersPool;
+    slider.addEventListener("input", () => {
+      tiersPool = +slider.value; if (val) val.textContent = tiersPool; renderTiers();
+    });
+  }
+  document.getElementById("tiers-print")?.addEventListener("click", () => window.print());
+}
+const TIER_ORDER = [
+  { label: "Elite",   cls: "tier-elite",   min: 4.5,        desc: "z ≥ 4.5" },
+  { label: "Star",    cls: "tier-star",    min: 2.5,        desc: "2.5 – 4.5" },
+  { label: "Starter", cls: "tier-starter", min: 0.5,        desc: "0.5 – 2.5" },
+  { label: "Deep",    cls: "tier-border",  min: -0.5,       desc: "−0.5 – 0.5" },
+  { label: "Below",   cls: "tier-below",   min: -Infinity,  desc: "< −0.5" },
+];
+function renderTiers() {
+  const wrap = document.getElementById("tiers-wrap");
+  if (!wrap || !rawPlayers.length) return;
+  const board = computeBoard().slice(0, tiersPool);
+  const bands = TIER_ORDER.map((t) => ({ ...t, players: [] }));
+  board.forEach((p) => bands.find((b) => p.total >= b.min).players.push(p));
+  const puntTxt = state.punts.size ? ` · punting ${[...state.punts].map((k) => k.toUpperCase()).join(", ")}` : "";
+  wrap.innerHTML = bands.filter((b) => b.players.length).map((b) => `
+    <div class="tier-band">
+      <div class="tier-band-head">
+        <span class="tier-badge ${b.cls}">${b.label}</span>
+        <span class="tier-band-meta">${b.players.length} players · ${b.desc}</span>
+      </div>
+      <div class="tier-chips">
+        ${b.players.map((p) => `
+          <button class="tier-chip" data-id="${esc(p.id)}" title="View ${esc(p.name)}">
+            ${avatarHTML(p, "tier-photo")}
+            <span class="tc-info">
+              <span class="tc-name">${esc(p.name)}</span>
+              <span class="tc-sub">#${p.rank} · ${teamLogo(p.team)}${esc(p.team || "—")} · ${esc(p.pos || "—")}</span>
+            </span>
+            <span class="tc-z ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}</span>
+          </button>`).join("")}
+      </div>
+    </div>`).join("") +
+    `<div class="board-note" style="padding-top:12px">Top ${board.length} players by total z${puntTxt}</div>`;
+  wrap.querySelectorAll(".tier-chip[data-id]").forEach((el) =>
+    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+}
 
 /* ---- best streamers (schedule-weighted pickups) ---- */
 let streamMinGames = 3;

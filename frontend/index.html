@@ -32,6 +32,7 @@
       <a href="#players">Players</a>
       <a href="#rankings">Rankings</a>
       <a href="#positions">Positions</a>
+      <a href="#tiers">Tiers</a>
       <a href="#trade">Trade</a>
       <a href="#myteam">My Team</a>
       <a href="#schedule">Schedule</a>
@@ -188,6 +189,20 @@
     <p class="section-lead reveal">Top fantasy values at each position — because a top-30 center is worth more than a top-30 guard. Honors your punt settings; click any name for the full breakdown.</p>
     <div class="pos-rank-grid reveal" id="pos-rank-grid">
       <div class="board-loading">Loading positional ranks…</div>
+    </div>
+  </section>
+
+  <!-- ===================== DRAFT TIERS ===================== -->
+  <section class="section" id="tiers">
+    <h2 class="section-title reveal">Draft tiers</h2>
+    <p class="section-lead reveal">Rosterable players grouped into value tiers — the cheat sheet for a snake draft. Honors your punt settings; draft within a tier, then reach for the next. Click any player for the breakdown.</p>
+    <div class="tiers-bar reveal">
+      <label class="stream-toggle" for="tiers-pool">Pool <b id="tiersPoolVal">156</b></label>
+      <input id="tiers-pool" type="range" min="48" max="240" step="12" value="156" />
+      <button id="tiers-print" class="btn btn-ghost" type="button">🖨 Print / PDF</button>
+    </div>
+    <div class="tiers-wrap reveal" id="tiers-wrap">
+      <div class="board-loading">Loading tiers…</div>
     </div>
   </section>
 
