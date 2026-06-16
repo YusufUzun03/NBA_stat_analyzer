@@ -29,6 +29,19 @@ body {
 a { color: inherit; text-decoration: none; }
 b, strong { font-weight: 800; }
 
+/* ===== accessibility ===== */
+/* keyboard focus ring on interactive elements (mouse clicks stay clean) */
+:focus-visible {
+  outline: 2px solid var(--orange-2); outline-offset: 2px; border-radius: 6px;
+}
+:focus:not(:focus-visible) { outline: none; }
+.skip-link {
+  position: fixed; top: -60px; left: 12px; z-index: 100;
+  background: var(--orange); color: #1a0e07; font-weight: 700;
+  padding: 10px 16px; border-radius: 0 0 10px 10px; transition: top 0.2s;
+}
+.skip-link:focus { top: 0; }
+
 /* ===== background orbs =====
    Static, pre-rasterized glow. A large blur() layer is cheap to *composite*
    once but very expensive to re-rasterize every frame — so these no longer
@@ -470,10 +483,22 @@ select { cursor:pointer; min-width:120px; }
 .sc-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .sc-head .tm { font-family: "Archivo"; font-weight: 700; font-size: 1.1rem; }
 .sc-head .ct { font-family: "Archivo"; color: var(--gold); }
-.sc-dots { display: flex; gap: 5px; margin-bottom: 8px; }
-.sc-dots span { width: 12px; height: 12px; border-radius: 50%; background: var(--orange); opacity: .9; }
+/* weekly Mon–Sun mini calendar */
+.sc-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 9px; }
+.sc-day {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 5px 2px 6px; border-radius: 8px; border: 1px solid transparent;
+}
+.sc-dow { font-size: .58rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.sc-opp { display: flex; align-items: center; justify-content: center; height: 18px; }
+.sc-opp .tlogo { width: 18px; height: 18px; margin: 0; }
+.sc-opp-abbr { font-size: .56rem; font-weight: 700; color: var(--ink); }
+.sc-at { font-style: normal; font-size: .58rem; color: var(--muted); margin-right: 1px; }
+.sc-bye { color: rgba(255, 255, 255, .18); font-weight: 700; }
+.sc-day.on { background: rgba(58, 109, 240, .1); border-color: rgba(58, 109, 240, .28); }
+.sc-day.on.b2b { background: rgba(255, 92, 108, .12); border-color: rgba(255, 92, 108, .4); }
 .sc-b2b { font-size: .72rem; color: var(--bad); font-weight: 600; }
-.sc-dates { color: var(--muted); font-size: .76rem; margin-top: 4px; }
+.sc-b2b.sc-norest { color: var(--good); }
 
 /* ===== punt fit ===== */
 .puntfit-result { margin-top: 20px; }

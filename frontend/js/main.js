@@ -32,12 +32,15 @@ const teamLogoURL = (team) => {
 // Small inline logo; onerror removes it so a missing logo just disappears.
 function teamLogo(team, cls = "") {
   const u = teamLogoURL(team);
-  return u ? `<img class="tlogo ${cls}" src="${u}" alt="" loading="lazy" onerror="this.remove()" />` : "";
+  return u ? `<img class="tlogo ${cls}" src="${u}" alt="" loading="lazy" decoding="async" onerror="this.remove()" />` : "";
 }
 
 // Accent-insensitive search key: "Jokić" -> "jokic", "Dončić" -> "doncic",
 // so users can find players without typing diacritics.
 const norm = (s) => String(s ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+// Coalesce rapid input (search keystrokes) into one render — the board rebuilds
+// 400+ rows, so re-running on every keystroke is the main jank source.
+const debounce = (fn, ms = 130) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 // Hosted: the available seasons come from data/manifest.json (kept in sync by
 // the nightly refresh), so a new season appears automatically. Live backend:
 // it can serve any recent season. bootstrapSeasons() may replace this list.
@@ -158,8 +161,9 @@ function initScrollSpy() {
   const io = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
       if (!e.isIntersecting) return;
-      links.forEach((l) => l.classList.remove("active"));
-      map.get(e.target)?.classList.add("active");
+      links.forEach((l) => { l.classList.remove("active"); l.removeAttribute("aria-current"); });
+      const a = map.get(e.target);
+      if (a) { a.classList.add("active"); a.setAttribute("aria-current", "true"); }
     });
   }, { rootMargin: "-45% 0px -50% 0px", threshold: 0 });
   map.forEach((_, sec) => io.observe(sec));
@@ -275,7 +279,8 @@ function initControls() {
   // search
   const search = document.getElementById("search");
   search.value = state.search;
-  search.addEventListener("input", () => { state.search = search.value.trim(); render(); });
+  const debouncedRender = debounce(render);
+  search.addEventListener("input", () => { state.search = search.value.trim(); debouncedRender(); });
 
   // pool + min minutes (baseline-affecting -> refetch; disabled when hosted)
   bindRange("pool", "poolVal", (v) => { state.pool = v; load(); });
@@ -571,7 +576,10 @@ function initTools() {
   });
   // Phase 4: players section search
   const psearch = document.getElementById("player-search");
-  if (psearch) psearch.addEventListener("input", () => renderPlayerGrid(psearch.value.trim()));
+  if (psearch) {
+    const debouncedGrid = debounce((q) => renderPlayerGrid(q));
+    psearch.addEventListener("input", () => debouncedGrid(psearch.value.trim()));
+  }
 }
 function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); }
 
@@ -619,7 +627,7 @@ function renderStreamers() {
     return;
   }
   grid.innerHTML = rows.map(({ p, g }) => `
-    <div class="stream-card" data-id="${esc(p.id)}">
+    <div class="stream-card" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="View ${esc(p.name)}">
       <button class="star-btn sc-star${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button>
       <div class="sg-games"><b>${g}</b><span>GP</span></div>
       ${avatarHTML(p, "pc-avatar")}
@@ -629,12 +637,16 @@ function renderStreamers() {
       </div>
       <div class="sg-val ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}<span>z</span></div>
     </div>`).join("");
-  grid.querySelectorAll(".stream-card[data-id]").forEach((el) =>
+  grid.querySelectorAll(".stream-card[data-id]").forEach((el) => {
     el.addEventListener("click", (e) => {
       const star = e.target.closest(".star-btn[data-star]");
       if (star) { e.stopPropagation(); toggleStar(star.dataset.star); return; }
       const p = getPlayer(el.dataset.id); if (p) openModal(p);
-    }));
+    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); const p = getPlayer(el.dataset.id); if (p) openModal(p); }
+    });
+  });
 }
 
 /* ---- positional rankings ---- */
@@ -919,13 +931,24 @@ function renderSchedule() {
     grid.innerHTML = '<div class="board-loading">No games this week (offseason or break).</div>'; return;
   }
   const maxG = wk.teams[0].games;
+  const DOW = ["M", "T", "W", "T", "F", "S", "S"];
   grid.innerHTML = wk.teams.map((t) => {
     const stream = t.games >= Math.max(4, maxG);
-    return `<div class="sc-team${stream ? " stream" : ""}">` +
-      `<div class="sc-head"><span class="tm">${teamLogo(t.team)}${t.team}</span><span class="ct">${t.games}</span></div>` +
-      `<div class="sc-dots">${"<span></span>".repeat(t.games)}</div>` +
-      (t.b2b ? `<div class="sc-b2b">${t.b2b} back-to-back${t.b2b > 1 ? "s" : ""}</div>` : "") +
-      `<div class="sc-dates">${t.dates.map((d) => d.slice(5)).join(" · ")}</div></div>`;
+    const cells = wk.days.map((d, i) => {
+      const g = t.opps[d];
+      if (!g) return `<div class="sc-day"><span class="sc-dow">${DOW[i]}</span><span class="sc-opp sc-bye">·</span></div>`;
+      const b2b = !!(t.opps[wk.days[i - 1]] || t.opps[wk.days[i + 1]]);
+      const oppMark = teamLogo(g.opp) || `<span class="sc-opp-abbr">${esc(g.opp)}</span>`;
+      return `<div class="sc-day on${b2b ? " b2b" : ""}" title="${g.away ? "@" : "vs"} ${esc(g.opp)} · ${d.slice(5)}">
+        <span class="sc-dow">${DOW[i]}</span>
+        <span class="sc-opp">${g.away ? '<i class="sc-at">@</i>' : ""}${oppMark}</span>
+      </div>`;
+    }).join("");
+    return `<div class="sc-team${stream ? " stream" : ""}">
+      <div class="sc-head"><span class="tm">${teamLogo(t.team)}${t.team}</span><span class="ct">${t.games}</span></div>
+      <div class="sc-week">${cells}</div>
+      ${t.b2b ? `<div class="sc-b2b">${t.b2b} back-to-back${t.b2b > 1 ? "s" : ""}</div>` : `<div class="sc-b2b sc-norest">no back-to-backs</div>`}
+    </div>`;
   }).join("");
   renderMyTeam();     // refresh the roster's weekly projection for the new week
   renderStreamers();  // streamer ranks are week-specific too
@@ -933,15 +956,23 @@ function renderSchedule() {
 }
 function gamesPerWeek(games, anchor) {
   const [mon, sun] = weekBounds(anchor), ms = fmtDate(mon), ss = fmtDate(sun);
-  const per = {};
-  for (const g of games) if (g.date >= ms && g.date <= ss) for (const t of [g.home, g.away]) (per[t] = per[t] || []).push(g.date);
-  const teams = Object.entries(per).map(([team, ds]) => {
-    ds.sort(); let b2b = 0;
+  const days = [];
+  for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(fmtDate(d)); }
+  const per = {};  // team -> { dates:[], opps:{date:{opp,away}} }
+  for (const g of games) {
+    if (g.date < ms || g.date > ss) continue;
+    (per[g.home] = per[g.home] || { dates: [], opps: {} });
+    per[g.home].dates.push(g.date); per[g.home].opps[g.date] = { opp: g.away, away: false };
+    (per[g.away] = per[g.away] || { dates: [], opps: {} });
+    per[g.away].dates.push(g.date); per[g.away].opps[g.date] = { opp: g.home, away: true };
+  }
+  const teams = Object.entries(per).map(([team, info]) => {
+    const ds = [...info.dates].sort(); let b2b = 0;
     for (let i = 1; i < ds.length; i++) if (dayDiff(ds[i - 1], ds[i]) === 1) b2b++;
-    return { team, games: ds.length, b2b, dates: ds };
+    return { team, games: ds.length, b2b, dates: ds, opps: info.opps };
   });
   teams.sort((a, b) => b.games - a.games || a.team.localeCompare(b.team));
-  return { weekStart: ms, weekEnd: ss, teams };
+  return { weekStart: ms, weekEnd: ss, days, teams };
 }
 function weekBounds(anchor) {
   const d = new Date(anchor + "T00:00:00");
@@ -1065,13 +1096,20 @@ function openModal(p) {
   overlay.classList.add("open");
   overlay.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  // a11y: remember what had focus, move focus into the dialog.
+  lastFocused = document.activeElement;
+  document.getElementById("modal-close")?.focus();
 }
+let lastFocused = null;
 function closeModal() {
   const overlay = document.getElementById("modal-overlay");
   if (!overlay) return;
   overlay.classList.remove("open");
   overlay.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
+  // a11y: return focus to the element that opened the modal.
+  if (lastFocused && typeof lastFocused.focus === "function") lastFocused.focus();
+  lastFocused = null;
 }
 function buildModalHTML(p) {
   const tier = tierInfo(p.total);
@@ -1634,7 +1672,7 @@ const headshotURL = (id) => `https://www.basketball-reference.com/req/202106291/
 function avatarHTML(p, cls) {
   return `<div class="${cls} avatar" style="background:${avatarColor(p.name)}">
     <span class="av-ini">${playerInitials(p.name)}</span>
-    <img class="av-img" src="${headshotURL(p.id)}" alt="${esc(p.name)}" loading="lazy" onerror="this.remove()" />
+    <img class="av-img" src="${headshotURL(p.id)}" alt="${esc(p.name)}" loading="lazy" decoding="async" onerror="this.remove()" />
   </div>`;
 }
 
@@ -1659,7 +1697,7 @@ function renderPlayerGrid(query) {
     const pts = p.stats?.pts != null ? (+p.stats.pts).toFixed(1) : "—";
     const reb = p.stats?.reb != null ? (+p.stats.reb).toFixed(1) : "—";
     const ast = p.stats?.ast != null ? (+p.stats.ast).toFixed(1) : "—";
-    return `<div class="player-card" data-id="${esc(p.id)}">
+    return `<div class="player-card" data-id="${esc(p.id)}" role="button" tabindex="0" aria-label="View ${esc(p.name)}">
       <button class="star-btn pc-star${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button>
       <div class="pc-top">
         ${avatarHTML(p, "pc-avatar")}
@@ -1680,12 +1718,16 @@ function renderPlayerGrid(query) {
     ? `<div class="players-more"><button class="btn btn-ghost" id="players-load-more">Show more (${filtered.length-shown.length} remaining)</button></div>`
     : "";
   grid.innerHTML = cards + more;
-  grid.querySelectorAll(".player-card[data-id]").forEach((el) =>
+  grid.querySelectorAll(".player-card[data-id]").forEach((el) => {
     el.addEventListener("click", (e) => {
       const star = e.target.closest(".star-btn[data-star]");
       if (star) { e.stopPropagation(); toggleStar(star.dataset.star); return; }
       const p = getPlayer(el.dataset.id); if (p) openModal(p);
-    }));
+    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); const p = getPlayer(el.dataset.id); if (p) openModal(p); }
+    });
+  });
   grid.querySelector("#players-load-more")?.addEventListener("click", () => {
     playersShown += PLAYERS_PAGE_SIZE;
     renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
