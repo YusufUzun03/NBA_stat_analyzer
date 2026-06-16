@@ -705,7 +705,7 @@ function renderTradeLists() {
     el.innerHTML = tradeSel[side].map((id) => {
       const p = getPlayer(id);
       if (!p) return "";
-      return `<div class="tl-item"><span>${esc(p.name)}</span><span><span class="tot">${puntedTotal(p).toFixed(1)}</span> <button data-side="${side}" data-id="${esc(id)}">×</button></span></div>`;
+      return `<div class="tl-item">${avatarHTML(p, "tl-photo")}<span class="tl-name">${esc(p.name)}</span><span class="tl-end"><span class="tot">${puntedTotal(p).toFixed(1)}</span> <button data-side="${side}" data-id="${esc(id)}">×</button></span></div>`;
     }).join("");
     el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => removeTrade(b.dataset.side, b.dataset.id)));
   }
@@ -772,7 +772,7 @@ function renderMatchupLists() {
     el.innerHTML = matchupSel[side].map((id) => {
       const p = getPlayer(id);
       if (!p) return "";
-      return `<div class="tl-item"><span>${esc(p.name)}</span><span><span class="tot">${esc(p.team || "—")}</span> <button data-side="${side}" data-id="${esc(id)}">×</button></span></div>`;
+      return `<div class="tl-item">${avatarHTML(p, "tl-photo")}<span class="tl-name">${esc(p.name)}</span><span class="tl-end"><span class="tot">${teamLogo(p.team)}${esc(p.team || "—")}</span> <button data-side="${side}" data-id="${esc(id)}">×</button></span></div>`;
     }).join("");
     el.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => removeMatchup(b.dataset.side, b.dataset.id)));
   }
@@ -922,7 +922,7 @@ function renderSchedule() {
   grid.innerHTML = wk.teams.map((t) => {
     const stream = t.games >= Math.max(4, maxG);
     return `<div class="sc-team${stream ? " stream" : ""}">` +
-      `<div class="sc-head"><span class="tm">${t.team}</span><span class="ct">${t.games}</span></div>` +
+      `<div class="sc-head"><span class="tm">${teamLogo(t.team)}${t.team}</span><span class="ct">${t.games}</span></div>` +
       `<div class="sc-dots">${"<span></span>".repeat(t.games)}</div>` +
       (t.b2b ? `<div class="sc-b2b">${t.b2b} back-to-back${t.b2b > 1 ? "s" : ""}</div>` : "") +
       `<div class="sc-dates">${t.dates.map((d) => d.slice(5)).join(" · ")}</div></div>`;
@@ -1214,7 +1214,7 @@ function openCompareModal() {
   if (!content || !overlay) return;
   const COLORS = ["#ee6730", "#ffc24b", "#44d07b", "#3a6df0"];
   const headers = players.map((p, i) =>
-    `<th style="color:${COLORS[i % COLORS.length]}">${esc(p.name)}<br><small style="font-weight:400;color:var(--muted)">${esc(p.team||"")} · ${esc(p.pos||"")}</small></th>`).join("");
+    `<th style="color:${COLORS[i % COLORS.length]}"><span class="cmp-th">${avatarHTML(p, "cmp-photo")}<span>${esc(p.name)}</span></span><small style="font-weight:400;color:var(--muted)">${teamLogo(p.team)}${esc(p.team||"")} · ${esc(p.pos||"")}</small></th>`).join("");
   const catRows = CATS.map((c) => {
     const vals = players.map((p) => p.z?.[c.k] ?? 0);
     const best = Math.max(...vals);

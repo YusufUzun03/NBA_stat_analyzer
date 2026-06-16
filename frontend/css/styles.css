@@ -1050,3 +1050,19 @@ select { cursor:pointer; min-width:120px; }
 .grid-empty { grid-column:1 / -1; text-align:center; padding:46px 20px; color:var(--muted); }
 .grid-empty p { color:var(--ink); font-weight:600; margin:4px 0; font-size:1.02rem; }
 .grid-empty span { font-size:.86rem; }
+
+/* logos/photos across roster lists, schedule and compare */
+.tl-photo { width:30px; height:30px; border-radius:8px; flex-shrink:0; }
+.tl-photo .av-ini { font-size:.7rem; }
+.tl-name { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600; }
+.tl-end { display:inline-flex; align-items:center; gap:8px; flex-shrink:0; }
+.tl-end .tot { display:inline-flex; align-items:center; }
+.sc-head .tm { display:inline-flex; align-items:center; }
+.sc-head .tm .tlogo { width:18px; height:18px; vertical-align:middle; }
+.cmp-th { display:flex; flex-direction:column; align-items:center; gap:7px; }
+.cmp-photo { width:44px; height:44px; border-radius:11px; }
+.cmp-photo .av-ini { font-size:.95rem; }
+.cmp-table thead th { text-align:center; vertical-align:bottom; }
+.cmp-table thead th.cat-lbl { text-align:left; }
+.cmp-table thead th small { display:inline-flex; align-items:center; justify-content:center; margin-top:3px; }
+.cmp-table thead th small .tlogo { width:13px; height:13px; }
