@@ -44,6 +44,7 @@ function toggleStar(id) {
   if (starredOnly && !watchlist.size) starredOnly = false;  // nothing left to show
   render();
   renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
+  renderMyTeam();
   syncStarChip();
 }
 function syncStarChip() {
@@ -218,6 +219,7 @@ async function load() {
     refreshTools();
     renderLeaders();
     renderPlayerGrid("");
+    renderMyTeam();
     fetchAdvanced(); // fire-and-forget; populates advancedData for modals
   } catch (err) {
     rawPlayers = [];
@@ -1307,4 +1309,130 @@ function renderPlayerGrid(query) {
     playersShown += PLAYERS_PAGE_SIZE;
     renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
   });
+}
+
+/* ============================ MY TEAM ANALYZER ============================ */
+// Treats the watchlist (starred players) as a fantasy roster: totals the
+// per-category z-scores, surfaces strengths/weaknesses, and recommends the
+// punt build that best fits the team — appliable to the board in one click.
+
+const fullZTotal = (p) => CAT_KEYS.reduce((t, k) => t + (p.z?.[k] ?? 0), 0);
+
+// Apply a set of punt categories to the global board state + sync chip UI.
+function applyPuntBuild(keys) {
+  state.punts = new Set(keys);
+  document.querySelectorAll("#punts .punt-chip").forEach((b) =>
+    b.classList.toggle("active", state.punts.has(b.dataset.k)));
+  render();
+  refreshTools();
+  renderMyTeam();
+  document.getElementById("rankings")?.scrollIntoView({ behavior: "smooth" });
+}
+
+function renderMyTeam() {
+  const body = document.getElementById("myteam-body");
+  if (!body) return;
+  const roster = [...watchlist].map(getPlayer).filter(Boolean)
+    .sort((a, b) => fullZTotal(b) - fullZTotal(a));
+
+  if (!roster.length) {
+    body.innerHTML = `<div class="mt-empty">
+      <div class="mt-empty-ic">🏀</div>
+      <p>Your roster is empty. Tap the <b>☆</b> on any player to add them here.</p>
+      <p class="mt-empty-sub">Build a roster to see your team's category profile and the punt strategy that fits it best.</p>
+    </div>`;
+    return;
+  }
+
+  // Per-category roster totals + per-player average (avg is comparable across
+  // roster sizes, so the strength labels don't drift as you add players).
+  const sums = {}; CAT_KEYS.forEach((k) => (sums[k] = 0));
+  roster.forEach((p) => CAT_KEYS.forEach((k) => (sums[k] += p.z?.[k] ?? 0)));
+  const avg = (k) => sums[k] / roster.length;
+  const teamTotal = CAT_KEYS.reduce((t, k) => t + sums[k], 0);
+
+  // Diverging bars centered on zero, scaled to the strongest magnitude.
+  const maxAbs = Math.max(0.6, ...CATS.map((c) => Math.abs(avg(c.k))));
+  const ranked = CATS.map((c) => ({ ...c, a: avg(c.k), s: sums[c.k] }))
+    .sort((x, y) => y.a - x.a);
+  const tag = (a) => a >= 0.6 ? { t: "Strong", cls: "good" }
+    : a >= 0.15 ? { t: "Solid", cls: "ok" }
+    : a > -0.3 ? { t: "Thin", cls: "warn" }
+    : { t: "Weak", cls: "bad" };
+
+  const bars = ranked.map((c) => {
+    const w = (Math.min(Math.abs(c.a) / maxAbs, 1) * 50).toFixed(1);
+    const pos = c.a >= 0;
+    const style = pos
+      ? `left:50%;width:${w}%;background:var(--good)`
+      : `right:50%;left:auto;width:${w}%;background:var(--bad)`;
+    const tg = tag(c.a);
+    return `<div class="mt-row">
+      <span class="mt-cat">${c.l}</span>
+      <span class="mt-bar"><i style="${style}"></i></span>
+      <span class="mt-avg ${pos ? "pos-good" : "pos-bad"}">${pos ? "+" : ""}${c.a.toFixed(2)}</span>
+      <span class="mt-tag mt-tag-${tg.cls}">${tg.t}</span>
+    </div>`;
+  }).join("");
+
+  // Recommended punts: the categories you're meaningfully behind in. Punting a
+  // cat you can't win frees value everywhere else — so suggest the weakest ones
+  // (avg z below a small threshold), capped at three.
+  const weak = ranked.filter((c) => c.a < -0.15).slice(-3).reverse();
+  const buildKeys = weak.map((c) => c.k);
+  let rec;
+  if (!buildKeys.length) {
+    rec = `<div class="mt-rec mt-rec-balanced">
+      <div class="mt-rec-h">Balanced build</div>
+      <p>No category is dragging your team down — you're competitive across the board. Punting isn't needed; stay flexible and stream for games played.</p>
+    </div>`;
+  } else {
+    const names = weak.map((c) => c.l).join(", ");
+    const same = buildKeys.length === state.punts.size &&
+      buildKeys.every((k) => state.punts.has(k));
+    rec = `<div class="mt-rec">
+      <div class="mt-rec-h">Suggested build · punt ${names}</div>
+      <p>Your roster is weakest in ${names}. Punting ${weak.length > 1 ? "these" : "it"} concentrates value where you actually compete.</p>
+      <button class="btn btn-primary mt-apply" ${same ? "disabled" : ""}>${same ? "✓ Build applied to board" : "Apply punt build to board →"}</button>
+    </div>`;
+  }
+
+  const puntNote = state.punts.size
+    ? `<div class="mt-punt-note">Board currently punting <b>${[...state.punts].map((k) => k.toUpperCase()).join(", ")}</b>.</div>`
+    : "";
+
+  const chips = roster.map((p) => {
+    const tot = fullZTotal(p);
+    return `<div class="mt-player">
+      <span class="mt-pname" data-id="${esc(p.id)}" title="View details">${esc(p.name)}</span>
+      <span class="mt-pmeta">${esc(p.pos || "—")} · ${esc(p.team || "—")}</span>
+      <span class="mt-ptot ${tot >= 0 ? "pos-good" : "pos-bad"}">${tot >= 0 ? "+" : ""}${tot.toFixed(1)}</span>
+      <button class="mt-remove" data-star="${esc(p.id)}" title="Remove from team">×</button>
+    </div>`;
+  }).join("");
+
+  body.innerHTML = `
+    <div class="mt-summary">
+      <div class="mt-stat"><b>${roster.length}</b><span>players</span></div>
+      <div class="mt-stat"><b class="${teamTotal >= 0 ? "pos-good" : "pos-bad"}">${teamTotal >= 0 ? "+" : ""}${teamTotal.toFixed(1)}</b><span>total z</span></div>
+      <div class="mt-stat"><b>${ranked.filter((c) => c.a >= 0.15).length}/9</b><span>cats above avg</span></div>
+    </div>
+    <div class="mt-grid">
+      <div class="mt-panel">
+        <div class="mt-panel-h">Category strength <small>avg z per player</small></div>
+        <div class="mt-bars">${bars}</div>
+      </div>
+      <div class="mt-panel mt-side">
+        ${rec}
+        ${puntNote}
+        <div class="mt-panel-h" style="margin-top:14px">Roster <small>${roster.length}</small></div>
+        <div class="mt-roster">${chips}</div>
+      </div>
+    </div>`;
+
+  body.querySelector(".mt-apply")?.addEventListener("click", () => applyPuntBuild(buildKeys));
+  body.querySelectorAll(".mt-remove[data-star]").forEach((b) =>
+    b.addEventListener("click", () => toggleStar(b.dataset.star)));
+  body.querySelectorAll(".mt-pname[data-id]").forEach((el) =>
+    el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
 }

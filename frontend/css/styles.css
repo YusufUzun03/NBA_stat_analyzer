@@ -742,3 +742,82 @@ select { cursor:pointer; min-width:120px; }
 .split-down { border-color:rgba(255,92,108,.4);  background:rgba(255,92,108,.08); }
 .split-down .sc-delta { color:var(--bad); }
 .split-flat .sc-delta { color:var(--muted); }
+
+/* ===== My Team analyzer ===== */
+.myteam-wrap { margin-top:8px; }
+.mt-empty {
+  text-align:center; padding:46px 20px; background:var(--panel);
+  border:1px solid var(--panel-brd); border-radius:var(--radius);
+}
+.mt-empty-ic { font-size:2.4rem; margin-bottom:10px; opacity:.85; }
+.mt-empty p { color:var(--ink); font-weight:600; }
+.mt-empty-sub { color:var(--muted); font-weight:400; font-size:.9rem; margin-top:6px; }
+
+.mt-summary { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.mt-stat {
+  display:flex; flex-direction:column; gap:2px; align-items:center;
+  min-width:104px; padding:12px 18px; background:var(--panel);
+  border:1px solid var(--panel-brd); border-radius:14px;
+}
+.mt-stat b { font-family:"Archivo"; font-weight:900; font-size:1.5rem; }
+.mt-stat span { font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); }
+
+.mt-grid { display:grid; grid-template-columns:1.25fr 1fr; gap:16px; }
+@media (max-width:880px) { .mt-grid { grid-template-columns:1fr; } }
+.mt-panel {
+  background:var(--panel); border:1px solid var(--panel-brd);
+  border-radius:var(--radius); padding:18px 20px;
+}
+.mt-panel-h {
+  font-size:.72rem; letter-spacing:.5px; text-transform:uppercase;
+  color:var(--ink); font-weight:800; margin-bottom:14px;
+  display:flex; justify-content:space-between; align-items:baseline;
+}
+.mt-panel-h small { color:var(--muted); font-weight:600; letter-spacing:.3px; text-transform:none; }
+
+.mt-bars { display:flex; flex-direction:column; gap:9px; }
+.mt-row { display:grid; grid-template-columns:38px 1fr 52px 58px; align-items:center; gap:10px; }
+.mt-cat { font-weight:800; font-size:.82rem; color:var(--muted); }
+.mt-bar { position:relative; height:9px; border-radius:6px; background:rgba(255,255,255,.05); }
+.mt-bar::before { content:""; position:absolute; left:50%; top:-3px; bottom:-3px; width:1px; background:rgba(255,255,255,.16); }
+.mt-bar i { position:absolute; top:0; height:100%; border-radius:6px; transition:width .35s ease; }
+.mt-avg { font-variant-numeric:tabular-nums; font-weight:800; font-size:.84rem; text-align:right; }
+.mt-tag { font-size:.6rem; font-weight:800; letter-spacing:.4px; text-transform:uppercase;
+  text-align:center; padding:3px 0; border-radius:6px; }
+.mt-tag-good { color:var(--good); background:rgba(68,208,123,.14); }
+.mt-tag-ok   { color:#8fd6a8; background:rgba(68,208,123,.07); }
+.mt-tag-warn { color:var(--gold); background:rgba(255,194,75,.12); }
+.mt-tag-bad  { color:var(--bad); background:rgba(255,92,108,.13); }
+
+.mt-side { display:flex; flex-direction:column; }
+.mt-rec {
+  background:linear-gradient(135deg, rgba(238,103,48,.16), rgba(238,103,48,.04));
+  border:1px solid rgba(238,103,48,.35); border-radius:14px; padding:14px 16px;
+}
+.mt-rec-balanced {
+  background:linear-gradient(135deg, rgba(68,208,123,.14), rgba(68,208,123,.03));
+  border-color:rgba(68,208,123,.35);
+}
+.mt-rec-h { font-weight:800; font-size:.95rem; margin-bottom:6px; }
+.mt-rec p { font-size:.84rem; color:var(--muted); line-height:1.5; }
+.mt-apply { margin-top:12px; width:100%; font-size:.86rem; }
+.mt-apply:disabled { opacity:.55; cursor:default; }
+.mt-punt-note { font-size:.76rem; color:var(--muted); margin-top:10px; }
+.mt-punt-note b { color:var(--orange-2); font-weight:800; }
+
+.mt-roster { display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; }
+.mt-player {
+  display:grid; grid-template-columns:1fr auto 48px 22px; align-items:center; gap:8px;
+  padding:7px 10px; background:rgba(255,255,255,.03);
+  border:1px solid var(--panel-brd); border-radius:10px;
+}
+.mt-pname { font-weight:700; font-size:.86rem; cursor:pointer; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; }
+.mt-pname:hover { color:var(--orange-2); }
+.mt-pmeta { font-size:.7rem; color:var(--muted); white-space:nowrap; }
+.mt-ptot { font-variant-numeric:tabular-nums; font-weight:800; font-size:.84rem; text-align:right; }
+.mt-remove {
+  background:none; border:none; color:var(--muted); font-size:1.1rem; line-height:1;
+  cursor:pointer; padding:0; transition:color .2s;
+}
+.mt-remove:hover { color:var(--bad); }
