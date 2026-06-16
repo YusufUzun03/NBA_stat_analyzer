@@ -1422,20 +1422,9 @@ function buildCareerTable(seasons) {
 }
 
 /* ---- recent form (game log) ---- */
+// Game logs are split per player (data/gamelog/{season}/{id}.json), so opening
+// a Recent Form tab downloads only that one ~10 KB file instead of a 4 MB blob.
 const recentCache = {};
-// Bundled game-log snapshot (dict keyed by player id), used when no live API
-// is reachable. Generated offline by scripts/gen_gamelog.py and served as a
-// static data file so the page never scrapes or recomputes at runtime.
-let gamelogSnapshot = null;
-
-async function loadGamelogSnapshot() {
-  if (gamelogSnapshot !== null) return;
-  try {
-    const r = await fetch(`data/gamelog-${state.season}.json`);
-    if (r.ok) { const j = await r.json(); gamelogSnapshot = j.players || {}; }
-    else gamelogSnapshot = {};
-  } catch { gamelogSnapshot = {}; }
-}
 
 async function loadGamelog(playerId) {
   if (recentCache[playerId]) return recentCache[playerId];
@@ -1446,10 +1435,12 @@ async function loadGamelog(playerId) {
       if (r.ok) { recentCache[playerId] = await r.json(); return recentCache[playerId]; }
     } catch {}
   }
-  if (gamelogSnapshot === null) await loadGamelogSnapshot();
-  const games = (gamelogSnapshot || {})[playerId] || [];
-  recentCache[playerId] = games;
-  return games;
+  try {
+    const r = await fetch(`data/gamelog/${state.season}/${playerId}.json`);
+    if (r.ok) { recentCache[playerId] = await r.json(); return recentCache[playerId]; }
+  } catch {}
+  recentCache[playerId] = [];
+  return recentCache[playerId];
 }
 
 async function loadAndShowRecent(p, tabBody) {

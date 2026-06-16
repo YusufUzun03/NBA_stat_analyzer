@@ -57,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/data/*.json
+          git add -A frontend/data
           if git diff --staged --quiet; then
             echo "No data changes this week."
           else
