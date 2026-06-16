@@ -198,6 +198,13 @@ function initCounters() {
     if (e.isIntersecting) { run(e.target); obs.unobserve(e.target); } }));
   document.querySelectorAll(".hero-stats b[data-count]").forEach((n) => io.observe(n));
 }
+// Override a hero counter with the real, data-driven value once loaded.
+function setHeroStat(id, n) {
+  const el = document.getElementById(id);
+  if (!el || !Number.isFinite(n)) return;
+  el.dataset.count = n;
+  el.textContent = (+n).toLocaleString("en-US");
+}
 
 /* ---------- state persistence ---------- */
 function loadState() {
@@ -321,6 +328,7 @@ async function load() {
   setLoadingRow();
   try {
     rawPlayers = await fetchPlayers();
+    setHeroStat("stat-players", rawPlayers.length);
     // pool / min-minutes need the live backend; grey them out on snapshot fallback
     if (usingSnapshot) {
       document.getElementById("pool")?.closest(".tool")?.classList.add("disabled");
@@ -960,6 +968,8 @@ let scheduleMin = 0;   // min games filter for the schedule grid
 function initSchedule() {
   const date = document.getElementById("wk-date");
   if (!date) return;
+  // real default is computed from the data once the schedule loads; this is
+  // just a placeholder until then.
   date.value = "2026-01-12";
   document.getElementById("wk-prev").addEventListener("click", () => shiftWeek(-7));
   document.getElementById("wk-next").addEventListener("click", () => shiftWeek(7));
@@ -976,13 +986,26 @@ function initSchedule() {
 }
 async function loadSchedule() {
   try {
-    const r = await fetch("data/schedule-2025-26.json");
+    const r = await fetch(`data/schedule-${state.season}.json`);
     if (!r.ok) throw new Error(r.status);
     scheduleGames = (await r.json()).games;
+    setHeroStat("stat-games", scheduleGames.length);
+    // Default the week picker to the real "today" clamped into the season's
+    // range, so an in-season visitor lands on the current week (and an
+    // off-season visitor lands on the last week played, not a magic date).
+    const dateEl = document.getElementById("wk-date");
+    if (dateEl) dateEl.value = defaultWeekAnchor(scheduleGames);
     renderSchedule();
   } catch {
     document.getElementById("sched-grid").innerHTML = '<div class="board-loading">Schedule unavailable.</div>';
   }
+}
+function defaultWeekAnchor(games) {
+  if (!games.length) return "2026-01-12";
+  const dates = games.map((g) => g.date).sort();
+  const first = dates[0], last = dates[dates.length - 1];
+  const today = fmtDate(new Date());
+  return today < first ? first : today > last ? last : today;
 }
 function shiftWeek(days) {
   const d = document.getElementById("wk-date");

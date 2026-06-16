@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <radialGradient id="bg" cx="80%" cy="-10%" r="120%">
+      <stop offset="0%" stop-color="#161c30"/>
+      <stop offset="55%" stop-color="#0a0c14"/>
+    </radialGradient>
+    <radialGradient id="ball" cx="38%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#ff8a4c"/>
+      <stop offset="60%" stop-color="#ee6730"/>
+      <stop offset="100%" stop-color="#c94010"/>
+    </radialGradient>
+    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff8a4c"/>
+      <stop offset="100%" stop-color="#ffc24b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <!-- basketball -->
+  <g transform="translate(930,315)">
+    <circle r="190" fill="url(#ball)"/>
+    <g fill="none" stroke="#1a0e07" stroke-width="7" stroke-linecap="round" opacity="0.9">
+      <line x1="0" y1="-190" x2="0" y2="190"/>
+      <line x1="-190" y1="0" x2="190" y2="0"/>
+      <path d="M-135 -135 C-50 -50 -50 50 -135 135"/>
+      <path d="M135 -135 C50 -50 50 50 135 135"/>
+    </g>
+  </g>
+  <!-- copy -->
+  <text x="90" y="210" font-family="Archivo, Arial, sans-serif" font-weight="900" font-size="58" fill="#9aa3b8" letter-spacing="4">9-CATEGORY · Z-SCORE ENGINE</text>
+  <text x="86" y="320" font-family="Archivo, Arial, sans-serif" font-weight="900" font-size="118" fill="#f4f6fb">Hoop<tspan fill="#ee6730">IQ</tspan></text>
+  <text x="90" y="410" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="44" fill="#f4f6fb">Fantasy basketball analytics</text>
+  <text x="90" y="478" font-family="Inter, Arial, sans-serif" font-weight="500" font-size="33" fill="#9aa3b8">Rankings · Punt builds · Trades · Draft tiers · Matchups</text>
+  <rect x="90" y="520" width="300" height="8" rx="4" fill="url(#grad)"/>
+</svg>

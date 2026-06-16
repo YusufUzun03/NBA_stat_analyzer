@@ -4,7 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HoopIQ — NBA Fantasy Stat Analyzer</title>
-  <meta name="description" content="9-category z-score rankings, live punt analysis, trade grades and projections for fantasy basketball." />
+  <meta name="description" content="9-category z-score rankings, live punt analysis, trade grades, draft tiers, schedule and projections for fantasy basketball." />
+  <meta name="theme-color" content="#0a0c14" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="canonical" href="https://yusufuzun03.github.io/NBA_stat_analyzer/" />
+  <!-- social preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="HoopIQ" />
+  <meta property="og:title" content="HoopIQ — NBA Fantasy Stat Analyzer" />
+  <meta property="og:description" content="9-category z-score rankings, punt analysis, trade grades, draft tiers, matchup projections and streaming for fantasy basketball." />
+  <meta property="og:url" content="https://yusufuzun03.github.io/NBA_stat_analyzer/" />
+  <meta property="og:image" content="https://yusufuzun03.github.io/NBA_stat_analyzer/og-image.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="HoopIQ — NBA Fantasy Stat Analyzer" />
+  <meta name="twitter:description" content="9-cat z-score rankings, punt analysis, trades, draft tiers and matchup projections for fantasy hoops." />
+  <meta name="twitter:image" content="https://yusufuzun03.github.io/NBA_stat_analyzer/og-image.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -63,7 +77,7 @@
       </div>
       <div class="hero-stats">
         <div class="hero-stat-pill">
-          <b data-count="582">0</b>
+          <b data-count="444" id="stat-players">0</b>
           <span>players ranked</span>
         </div>
         <div class="hero-stat-pill">
@@ -71,8 +85,8 @@
           <span>categories</span>
         </div>
         <div class="hero-stat-pill">
-          <b data-count="1279">0</b>
-          <span>games tracked</span>
+          <b data-count="1279" id="stat-games">0</b>
+          <span>games scheduled</span>
         </div>
       </div>
     </div>
@@ -247,8 +261,8 @@
 
   <!-- ===================== SCHEDULE / STREAMING ===================== -->
   <section class="section" id="schedule">
-    <h2 class="section-title reveal">Schedule &amp; streaming</h2>
-    <p class="section-lead reveal">Games per team for any week, back-to-backs, and the best streaming targets (most games). Season 2025-26.</p>
+    <h2 class="section-title reveal">Weekly schedule</h2>
+    <p class="section-lead reveal">Each team's games for the week as a Mon–Sun calendar with opponents and back-to-backs highlighted. Filter by games played; pair it with Streamers and Matchup below.</p>
 
     <div class="sched-controls reveal">
       <button id="wk-prev" class="btn btn-ghost" type="button">◀ Prev</button>
