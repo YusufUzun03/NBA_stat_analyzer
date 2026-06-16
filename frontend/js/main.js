@@ -212,31 +212,82 @@ function initCounters() {
     if (e.isIntersecting) { run(e.target); obs.unobserve(e.target); } }));
   document.querySelectorAll(".hero-stats b[data-count]").forEach((n) => io.observe(n));
 }
-// Hero visual: a live radar of the current #1's 9-category z profile, cycling
-// through the top 5. Click the caption to open that player's modal.
+// Hero visual: a live radar of the current #1's 9-category z profile. The grid
+// is drawn once; switching players morphs the shape — each axis grows/shrinks
+// to the new value (no slide/fade). Cycles the top 5; caption opens the modal.
 let heroRadarTimer = null;
 let heroRadarIdx = 0;
+let heroVals = null;
+let heroRaf = null;
+const HERO_SIZE = 360, HERO_C = 180, HERO_MAXR = 126;
+const heroAngle = (i) => -Math.PI / 2 + i * (2 * Math.PI / CATS.length);
+const heroNorm = (z) => Math.max(0.04, Math.min(1, (z + 3) / 6));
+const heroPt = (i, r) => ({ x: HERO_C + r * Math.cos(heroAngle(i)), y: HERO_C + r * Math.sin(heroAngle(i)) });
+
+function heroScaffold() {
+  let s = `<svg viewBox="0 0 ${HERO_SIZE} ${HERO_SIZE}" class="hr-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`;
+  for (const pct of [0.25, 0.5, 0.75, 1]) {
+    const pts = CATS.map((_, i) => { const p = heroPt(i, HERO_MAXR * pct); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; });
+    s += `<polygon points="${pts.join(" ")}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>`;
+  }
+  for (let i = 0; i < CATS.length; i++) {
+    const e = heroPt(i, HERO_MAXR);
+    s += `<line x1="${HERO_C}" y1="${HERO_C}" x2="${e.x.toFixed(1)}" y2="${e.y.toFixed(1)}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>`;
+  }
+  s += `<polygon class="hr-poly" points="" fill="#ee6730" fill-opacity="0.18" stroke="#ee6730" stroke-width="2.5" stroke-linejoin="round"/>`;
+  for (let i = 0; i < CATS.length; i++) s += `<circle class="hr-dot" data-i="${i}" r="3.6" fill="#ff8a4c"/>`;
+  CATS.forEach((c, i) => {
+    const p = heroPt(i, HERO_MAXR + 20);
+    const anc = p.x > HERO_C + 4 ? "start" : p.x < HERO_C - 4 ? "end" : "middle";
+    s += `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anc}" dominant-baseline="middle" fill="rgba(255,255,255,0.62)" font-size="11" font-family="Inter,sans-serif" font-weight="600">${c.l}</text>`;
+  });
+  return s + "</svg>";
+}
+function applyHeroRadar(svg, vals) {
+  const poly = svg.querySelector(".hr-poly");
+  if (poly) poly.setAttribute("points", vals.map((z, i) => {
+    const p = heroPt(i, HERO_MAXR * heroNorm(z)); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+  }).join(" "));
+  svg.querySelectorAll(".hr-dot").forEach((d) => {
+    const i = +d.dataset.i, p = heroPt(i, HERO_MAXR * heroNorm(vals[i]));
+    d.setAttribute("cx", p.x.toFixed(1)); d.setAttribute("cy", p.y.toFixed(1));
+  });
+}
+function tweenHeroRadar(svg, from, to, ms = 700) {
+  cancelAnimationFrame(heroRaf);
+  const start = performance.now(), ease = (t) => 1 - Math.pow(1 - t, 3);
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / ms), e = ease(t);
+    heroVals = to.map((v, i) => from[i] + (v - from[i]) * e);
+    applyHeroRadar(svg, heroVals);
+    if (t < 1) heroRaf = requestAnimationFrame(step);
+    else heroVals = to.slice();
+  };
+  heroRaf = requestAnimationFrame(step);
+}
 function renderHeroRadar() {
   const wrap = document.getElementById("hero-radar");
   if (!wrap || !rawPlayers.length) return;
   const top = computeBoard().slice(0, 5);
   if (!top.length) return;
-  const draw = () => {
-    const p = top[heroRadarIdx % top.length];
-    wrap.innerHTML =
-      `<div class="hr-chart">${radarSVG([p], 360)}</div>` +
-      `<button class="hr-cap" data-id="${esc(p.id)}" aria-label="View ${esc(p.name)}">` +
-        `<span class="hr-rank">#${p.rank}</span>` +
-        `<span class="hr-name">${esc(p.name)}</span>` +
-        `<span class="hr-z">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)} z</span>` +
-      `</button>`;
-    wrap.querySelector(".hr-cap")?.addEventListener("click", () => { const pl = getPlayer(p.id); if (pl) openModal(pl); });
-  };
-  draw();
-  clearInterval(heroRadarTimer);
+  wrap.innerHTML = heroScaffold() + `<button class="hr-cap" id="hr-cap"></button>`;
+  const svg = wrap.querySelector(".hr-svg");
+  const valsFor = (p) => CAT_KEYS.map((k) => p.z?.[k] ?? 0);
   const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  heroRadarIdx = 0;
+  heroVals = CAT_KEYS.map(() => 0);          // start collapsed, then grow into #1
+  const show = (idx) => {
+    const p = top[idx % top.length], target = valsFor(p);
+    if (reduce) { heroVals = target.slice(); applyHeroRadar(svg, heroVals); }
+    else tweenHeroRadar(svg, heroVals, target);
+    const cap = document.getElementById("hr-cap");
+    cap.innerHTML = `<span class="hr-rank">#${p.rank}</span><span class="hr-name">${esc(p.name)}</span><span class="hr-z">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)} z</span>`;
+    cap.onclick = () => { const pl = getPlayer(p.id); if (pl) openModal(pl); };
+  };
+  show(0);
+  clearInterval(heroRadarTimer);
   if (!reduce && top.length > 1) {
-    heroRadarTimer = setInterval(() => { heroRadarIdx = (heroRadarIdx + 1) % top.length; draw(); }, 3800);
+    heroRadarTimer = setInterval(() => { heroRadarIdx = (heroRadarIdx + 1) % top.length; show(heroRadarIdx); }, 4200);
   }
 }
 
