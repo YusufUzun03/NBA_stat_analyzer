@@ -58,6 +58,13 @@ let rawPlayers = [];   // current fetched set (full z, no punt applied)
 const WATCH_KEY = "hoopiq_watchlist";
 let watchlist = loadWatchlist();   // Set of player ids
 let starredOnly = false;           // board filter toggle (transient)
+// A shared link can carry a roster via ?stars=id1,id2 — show the sender's team
+// in-memory without clobbering the visitor's saved watchlist (it only persists
+// once they actually star/unstar something themselves).
+(() => {
+  const s = new URLSearchParams(location.search).get("stars");
+  if (s) { const ids = s.split(",").filter(Boolean); if (ids.length) watchlist = new Set(ids); }
+})();
 function loadWatchlist() {
   try { return new Set(JSON.parse(localStorage.getItem(WATCH_KEY) || "[]")); }
   catch { return new Set(); }
@@ -272,9 +279,11 @@ function initControls() {
       b.classList.toggle("active");
       render();
       refreshTools();
+      syncPuntPresets();
     });
     puntWrap.appendChild(b);
   });
+  renderPuntPresets();
 
   // search
   const search = document.getElementById("search");
@@ -295,6 +304,7 @@ function initControls() {
     saveState(); location.reload();
   });
   document.getElementById("export").addEventListener("click", exportCsv);
+  document.getElementById("share")?.addEventListener("click", shareView);
 }
 function bindRange(id, valId, onCommit) {
   const el = document.getElementById(id), out = document.getElementById(valId);
@@ -1800,14 +1810,64 @@ function renderPlayerGrid(query) {
 const fullZTotal = (p) => CAT_KEYS.reduce((t, k) => t + (p.z?.[k] ?? 0), 0);
 
 // Apply a set of punt categories to the global board state + sync chip UI.
-function applyPuntBuild(keys) {
+function applyPuntBuild(keys, scroll = true) {
   state.punts = new Set(keys);
   document.querySelectorAll("#punts .punt-chip").forEach((b) =>
     b.classList.toggle("active", state.punts.has(b.dataset.k)));
   render();
   refreshTools();
   renderMyTeam();
-  document.getElementById("rankings")?.scrollIntoView({ behavior: "smooth" });
+  syncPuntPresets();
+  if (scroll) document.getElementById("rankings")?.scrollIntoView({ behavior: "smooth" });
+}
+
+/* ---- punt build presets (one-click common builds) ---- */
+const PUNT_PRESETS = [
+  { label: "No punt", keys: [] },
+  { label: "Punt FT%", keys: ["ft"] },
+  { label: "Punt FG%", keys: ["fg"] },
+  { label: "Punt AST", keys: ["ast"] },
+  { label: "Punt 3PM", keys: ["tpm"] },
+  { label: "Punt TOV", keys: ["tov"] },
+  { label: "Punt FT% + TOV", keys: ["ft", "tov"] },
+  { label: "Punt FG% + TOV", keys: ["fg", "tov"] },
+  { label: "Punt AST + TOV", keys: ["ast", "tov"] },
+];
+const setEq = (set, keys) => set.size === keys.length && keys.every((k) => set.has(k));
+function renderPuntPresets() {
+  const wrap = document.getElementById("puntPresets");
+  if (!wrap) return;
+  wrap.innerHTML = `<span class="pp-label">Quick builds</span>` + PUNT_PRESETS.map((p, i) =>
+    `<button class="pp-btn" data-i="${i}" type="button">${p.label}</button>`).join("");
+  wrap.querySelectorAll(".pp-btn").forEach((b) =>
+    b.addEventListener("click", () => applyPuntBuild(PUNT_PRESETS[+b.dataset.i].keys, false)));
+  syncPuntPresets();
+}
+function syncPuntPresets() {
+  document.querySelectorAll("#puntPresets .pp-btn").forEach((b) =>
+    b.classList.toggle("active", setEq(state.punts, PUNT_PRESETS[+b.dataset.i].keys)));
+}
+
+/* ---- share + toast ---- */
+function shareView() {
+  saveState();                       // make sure the URL reflects the board
+  const url = new URL(location.href);
+  if (watchlist.size) url.searchParams.set("stars", [...watchlist].join(","));
+  else url.searchParams.delete("stars");
+  const text = url.toString();
+  const ok = () => showToast(`Link copied${watchlist.size ? " (with your roster)" : ""}`);
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(ok, () => showToast("Copy failed — " + text, true));
+  else { prompt("Copy this link:", text); }
+}
+let toastTimer;
+function showToast(msg, isErr = false) {
+  let el = document.getElementById("toast");
+  if (!el) { el = document.createElement("div"); el.id = "toast"; el.className = "toast"; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.classList.toggle("toast-err", isErr);
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
 }
 
 // Projected weekly category production for the roster: per-game raw stats ×
