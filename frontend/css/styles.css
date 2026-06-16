@@ -511,7 +511,25 @@ select { cursor:pointer; min-width:120px; }
   color:var(--muted); font-size:1.6rem; cursor:pointer; line-height:1; padding:4px; transition:color .15s; }
 .modal-close:hover { color:var(--ink); }
 .modal-header { margin-bottom:20px; padding-right:32px; }
+.modal-header-photo { display:flex; align-items:center; gap:16px; }
+.modal-head-info { min-width:0; }
+.modal-photo {
+  width:84px; height:84px; border-radius:18px; flex-shrink:0;
+  border:1px solid var(--panel-brd);
+}
+.modal-photo .av-ini { font-size:1.9rem; }
 .modal-name { font-family:"Archivo"; font-weight:900; font-size:1.75rem; line-height:1.1; }
+
+/* ===== player avatar / headshot (shared) ===== */
+.avatar {
+  position:relative; overflow:hidden; display:flex; align-items:center;
+  justify-content:center; color:#fff; font-family:"Archivo"; font-weight:900;
+}
+.avatar .av-ini { position:relative; z-index:0; line-height:1; }
+.avatar .av-img {
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+  object-position:center top; z-index:1; background:inherit;
+}
 .modal-meta { color:var(--muted); font-size:.88rem; margin-top:5px; }
 .modal-tier-row { display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap; }
 .modal-total { font-family:"Archivo"; font-size:.92rem; color:var(--muted); }

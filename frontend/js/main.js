@@ -790,12 +790,15 @@ function buildModalHTML(p) {
   const tier = tierInfo(p.total);
   const inCmp = compareList.includes(p.id);
   return `
-    <div class="modal-header">
-      <div class="modal-name">${esc(p.name)}</div>
-      <div class="modal-meta">${esc(p.team || "—")} · ${esc(p.pos || "—")} · ${p.gp ?? "—"} GP · ${(+(p.min ?? 0)).toFixed(1)} MPG</div>
-      <div class="modal-tier-row">
-        <span class="modal-total">#${p.rank} &nbsp;·&nbsp; <b>${p.total >= 0 ? "+" : ""}${p.total.toFixed(2)}</b> total z</span>
-        <span class="tier-badge ${tier.cls}">${tier.label}</span>
+    <div class="modal-header modal-header-photo">
+      ${avatarHTML(p, "modal-photo")}
+      <div class="modal-head-info">
+        <div class="modal-name">${esc(p.name)}</div>
+        <div class="modal-meta">${esc(p.team || "—")} · ${esc(p.pos || "—")} · ${p.gp ?? "—"} GP · ${(+(p.min ?? 0)).toFixed(1)} MPG</div>
+        <div class="modal-tier-row">
+          <span class="modal-total">#${p.rank} &nbsp;·&nbsp; <b>${p.total >= 0 ? "+" : ""}${p.total.toFixed(2)}</b> total z</span>
+          <span class="tier-badge ${tier.cls}">${tier.label}</span>
+        </div>
       </div>
     </div>
     <div class="modal-tabs" id="modal-tabs">
@@ -1337,6 +1340,16 @@ function avatarColor(name) {
   let h = 0; for (const c of name) h = (h*31 + c.charCodeAt(0)) & 0xfffff;
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
+// basketball-reference headshot — player ids are BR slugs (e.g. "jokicni01").
+const headshotURL = (id) => `https://www.basketball-reference.com/req/202106291/images/headshots/${id}.jpg`;
+// Colored initials avatar with the real headshot layered on top; if the photo
+// 404s (older/obscure players) onerror removes it and the initials show through.
+function avatarHTML(p, cls) {
+  return `<div class="${cls} avatar" style="background:${avatarColor(p.name)}">
+    <span class="av-ini">${playerInitials(p.name)}</span>
+    <img class="av-img" src="${headshotURL(p.id)}" alt="${esc(p.name)}" loading="lazy" onerror="this.remove()" />
+  </div>`;
+}
 
 const PLAYERS_PAGE_SIZE = 24;
 let playersShown = PLAYERS_PAGE_SIZE;
@@ -1350,15 +1363,13 @@ function renderPlayerGrid(query) {
     : rawPlayers;
   const shown = filtered.slice(0, playersShown);
   const cards = shown.map((p) => {
-    const ini = playerInitials(p.name);
-    const col = avatarColor(p.name);
     const pts = p.stats?.pts != null ? (+p.stats.pts).toFixed(1) : "—";
     const reb = p.stats?.reb != null ? (+p.stats.reb).toFixed(1) : "—";
     const ast = p.stats?.ast != null ? (+p.stats.ast).toFixed(1) : "—";
     return `<div class="player-card" data-id="${esc(p.id)}">
       <button class="star-btn pc-star${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button>
       <div class="pc-top">
-        <div class="pc-avatar" style="background:${col}">${ini}</div>
+        ${avatarHTML(p, "pc-avatar")}
         <div class="pc-info">
           <div class="pc-name">${esc(p.name)}</div>
           <div class="pc-meta">${esc(p.team||"—")} · ${esc(p.pos||"—")}</div>
