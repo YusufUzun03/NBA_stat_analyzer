@@ -51,7 +51,7 @@ let SEASONS = API
   : ["2025-26"]; // fallback until the manifest loads
 
 const DEFAULTS = { season: "2025-26", pool: 156, minMin: 12, punts: [],
-  pos: "ALL", team: "ALL", search: "", sortKey: "total", sortDir: "desc" };
+  pos: "ALL", team: "ALL", search: "", sortKey: "total", sortDir: "desc", statMode: "z" };
 
 let state = loadState();
 let rawPlayers = [];   // current fetched set (full z, no punt applied)
@@ -309,7 +309,8 @@ function loadState() {
   if (q.has("pool")) s.pool = +q.get("pool");
   if (q.has("minMin")) s.minMin = +q.get("minMin");
   if (q.has("punts")) s.punts = q.get("punts").split(",").filter(Boolean);
-  if (!SEASONS.includes(s.season)) s.season = DEFAULTS.season;
+  // accept any YYYY-YY here; bootstrapSeasons() validates against the manifest
+  if (!/^\d{4}-\d{2}$/.test(s.season)) s.season = DEFAULTS.season;
   s.punts = new Set(s.punts);
   return s;
 }
@@ -402,6 +403,19 @@ function initControls() {
   });
   document.getElementById("export").addEventListener("click", exportCsv);
   document.getElementById("share")?.addEventListener("click", shareView);
+
+  // Z-score ⇄ per-game raw stats toggle for the board's category columns
+  const sm = document.getElementById("statMode");
+  if (sm) {
+    sm.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.mode === state.statMode));
+    sm.addEventListener("click", (e) => {
+      const b = e.target.closest(".seg-btn[data-mode]");
+      if (!b) return;
+      state.statMode = b.dataset.mode;
+      sm.querySelectorAll(".seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+      render();
+    });
+  }
 }
 // Pool & min-minutes change the z-score baseline, which needs the live backend.
 // On the hosted snapshot they're fixed, so grey them out and explain why.
@@ -535,6 +549,7 @@ function applySort(rows) {
     if (sortKey === "pos") return p.pos || "";
     if (sortKey === "gp") return p.gp ?? 0;
     if (sortKey === "total" || sortKey === "rank") return p.total;
+    if (state.statMode === "raw") return p.stats?.[RAW_MAP[sortKey]] ?? -99; // category raw
     return p.z?.[sortKey] ?? -99; // category z
   };
   return [...rows].sort((a, b) => {
@@ -576,7 +591,8 @@ function render() {
 
   const puntTxt = state.punts.size ? ` · punting ${[...state.punts].map((k) => k.toUpperCase()).join(", ")}` : "";
   const src = usingSnapshot ? "bundled snapshot" : "live engine";
-  setNote(`${rows.length} of ${board.length} players · ${src} · ${state.season} · pool ${state.pool} · ≥${state.minMin} MPG${puntTxt}`);
+  const modeTxt = state.statMode === "raw" ? " · per-game stats" : "";
+  setNote(`${rows.length} of ${board.length} players · ${src} · ${state.season} · pool ${state.pool} · ≥${state.minMin} MPG${puntTxt}${modeTxt}`);
 }
 
 function clearBoardFilters() {
@@ -639,7 +655,11 @@ function rowEl(p) {
       const z = p.z?.[c.k];
       const punted = state.punts.has(c.k);
       const bg = punted || z == null ? "" : `background:${heat(z)}`;
-      return `<td class="z${punted ? " punted" : ""}" style="${bg}">${z == null ? "—" : z.toFixed(2)}</td>`;
+      // raw mode shows the real per-game number; heat colour still reflects z
+      const txt = state.statMode === "raw"
+        ? RAW_FMT(c.k, p.stats?.[RAW_MAP[c.k]])
+        : (z == null ? "—" : z.toFixed(2));
+      return `<td class="z${punted ? " punted" : ""}" style="${bg}">${txt}</td>`;
     }).join("") +
     `<td class="c-cmp"><button class="cmp-btn${inCmp ? " in-cmp" : ""}" data-id="${esc(p.id)}" title="${inCmp ? "Remove from compare" : "Add to compare"}">⊕</button></td>`;
   return tr;

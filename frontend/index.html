@@ -176,6 +176,13 @@
         <label for="minMin">Min MPG <b id="minVal">12</b></label>
         <input id="minMin" type="range" min="0" max="34" step="1" value="12" />
       </div>
+      <div class="tool">
+        <label>Show</label>
+        <div class="seg" id="statMode" role="group" aria-label="Stat display">
+          <button class="seg-btn active" data-mode="z" type="button">Z-score</button>
+          <button class="seg-btn" data-mode="raw" type="button">Per-game</button>
+        </div>
+      </div>
       <button id="reset" class="btn btn-ghost" type="button">Reset</button>
       <button id="export" class="btn btn-ghost" type="button">⬇ CSV</button>
       <button id="share" class="btn btn-ghost" type="button">🔗 Share</button>
