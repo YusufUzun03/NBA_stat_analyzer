@@ -27,7 +27,7 @@
   </g>
   <!-- copy -->
   <text x="90" y="210" font-family="Archivo, Arial, sans-serif" font-weight="900" font-size="58" fill="#9aa3b8" letter-spacing="4">9-CATEGORY · Z-SCORE ENGINE</text>
-  <text x="86" y="320" font-family="Archivo, Arial, sans-serif" font-weight="900" font-size="118" fill="#f4f6fb">Hoop<tspan fill="#ee6730">IQ</tspan></text>
+  <text x="86" y="320" font-family="Archivo, Arial, sans-serif" font-weight="900" font-size="104" fill="#f4f6fb">Box<tspan fill="#ee6730">Score</tspan></text>
   <text x="90" y="410" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="44" fill="#f4f6fb">Fantasy basketball analytics</text>
   <text x="90" y="478" font-family="Inter, Arial, sans-serif" font-weight="500" font-size="33" fill="#9aa3b8">Rankings · Punt builds · Trades · Draft tiers · Matchups</text>
   <rect x="90" y="520" width="300" height="8" rx="4" fill="url(#grad)"/>

@@ -1,4 +1,6 @@
-// HoopIQ frontend — nav, reveals, counters, and the interactive value board.
+// BoxScore frontend — nav, reveals, counters, and the interactive value board.
+// (Internal localStorage keys keep their "hoopiq_" prefix so existing saved
+//  state/watchlists survive the rename.)
 // Live API is only reachable locally; a hosted page loads a bundled data
 // snapshot instead. Punt / sort / search / filters all run client-side off the
 // per-category z-scores, so the board re-ranks instantly with no refetch.
@@ -603,7 +605,7 @@ function exportCsv() {
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `hoopiq-${state.season}${state.punts.size ? "-punt-" + [...state.punts].join("-") : ""}.csv`;
+  a.download = `boxscore-${state.season}${state.punts.size ? "-punt-" + [...state.punts].join("-") : ""}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }

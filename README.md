@@ -1,4 +1,4 @@
-# NBA Fantasy Stat Analyzer
+# BoxScore — NBA Fantasy Stat Analyzer
 
 A fantasy-basketball analytics tool built around the **9-category z-score engine** that powers
 the best fantasy tools (Hashtag Basketball, Basketball Monster, FantaZscores), plus a live
