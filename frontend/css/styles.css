@@ -18,7 +18,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; color-scheme: dark; }
 body {
   font-family: "Inter", system-ui, sans-serif;
   background: radial-gradient(1200px 700px at 80% -10%, #161c30 0%, var(--bg) 55%) fixed;
@@ -83,6 +83,10 @@ b, strong { font-weight: 800; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 13px 26px; border-radius: 999px; font-weight: 700; font-size: 0.94rem;
   cursor: pointer; border: 1px solid transparent;
+  /* reset the UA button chrome — without this, <button> elements pick up the OS
+     "buttonface" (white on Windows) and the light text becomes invisible. */
+  appearance: none; -webkit-appearance: none; background: transparent;
+  color: var(--ink); font-family: inherit;
   transition: transform 0.18s, box-shadow 0.22s, background 0.22s, opacity 0.18s;
   position: relative; overflow: hidden;
 }
@@ -101,7 +105,11 @@ b, strong { font-weight: 800; }
   background: rgba(255,255,255,0.06);
 }
 .btn-outline:hover { border-color: rgba(255,255,255,0.28); background: rgba(255,255,255,0.09); }
-.btn-ghost { padding: 9px 18px; border: 1px solid var(--panel-brd); color: var(--ink); }
+.btn-ghost {
+  padding: 9px 18px; border: 1px solid var(--panel-brd); color: var(--ink);
+  background: rgba(255,255,255,0.05);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.22); }
 
 /* ===== hero ===== */
 .hero {
