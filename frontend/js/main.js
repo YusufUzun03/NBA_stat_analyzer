@@ -45,6 +45,7 @@ function toggleStar(id) {
   render();
   renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
   renderMyTeam();
+  renderStreamers();
   syncStarChip();
 }
 function syncStarChip() {
@@ -439,6 +440,7 @@ function initTools() {
   attachAC(document.querySelector('.ac[data-ac="get"]'), (p) => addTrade("get", p.id));
   attachAC(document.querySelector('.ac[data-ac="punt"]'), (p) => { puntFitId = p.id; renderPuntFit(); });
   initSchedule();
+  initStreamers();
   // Phase 3: event delegation for player modal + compare buttons
   document.getElementById("rankTable").addEventListener("click", (e) => {
     const starBtn = e.target.closest(".star-btn[data-star]");
@@ -452,7 +454,69 @@ function initTools() {
   const psearch = document.getElementById("player-search");
   if (psearch) psearch.addEventListener("input", () => renderPlayerGrid(psearch.value.trim()));
 }
-function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); }
+function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); }
+
+/* ---- best streamers (schedule-weighted pickups) ---- */
+let streamMinGames = 3;
+let streamExcludeMine = true;
+function initStreamers() {
+  const seg = document.getElementById("stream-mingames");
+  seg?.addEventListener("click", (e) => {
+    const b = e.target.closest(".seg-btn[data-min]");
+    if (!b) return;
+    streamMinGames = +b.dataset.min;
+    seg.querySelectorAll(".seg-btn").forEach((x) => x.classList.toggle("active", x === b));
+    renderStreamers();
+  });
+  document.getElementById("stream-exclude")?.addEventListener("change", (e) => {
+    streamExcludeMine = e.target.checked;
+    renderStreamers();
+  });
+}
+function renderStreamers() {
+  const grid = document.getElementById("stream-grid");
+  if (!grid || !rawPlayers.length) return;
+  if (!scheduleGames.length) {
+    grid.innerHTML = `<div class="board-loading">Schedule not loaded yet.</div>`;
+    return;
+  }
+  const anchor = document.getElementById("wk-date")?.value || "2026-01-12";
+  const wk = gamesPerWeek(scheduleGames, anchor);
+  const gmap = {};
+  wk.teams.forEach((t) => (gmap[t.team] = t.games));
+  const weekEl = document.getElementById("stream-week");
+  if (weekEl) weekEl.textContent = `${wk.weekStart} → ${wk.weekEnd}`;
+
+  const rows = computeBoard()
+    .map((p) => ({ p, g: gmap[p.team] || 0 }))
+    .filter((x) => x.g >= streamMinGames)
+    .filter((x) => !(streamExcludeMine && watchlist.has(x.p.id)))
+    .map((x) => ({ ...x, score: x.g * x.p.total }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 24);
+
+  if (!rows.length) {
+    grid.innerHTML = `<div class="board-loading">No players play ${streamMinGames}+ games this week (offseason or break).</div>`;
+    return;
+  }
+  grid.innerHTML = rows.map(({ p, g }) => `
+    <div class="stream-card" data-id="${esc(p.id)}">
+      <button class="star-btn sc-star${isStarred(p.id) ? " on" : ""}" data-star="${esc(p.id)}" title="${isStarred(p.id) ? "Remove from watchlist" : "Add to watchlist"}">${isStarred(p.id) ? "★" : "☆"}</button>
+      <div class="sg-games"><b>${g}</b><span>GP</span></div>
+      ${avatarHTML(p, "pc-avatar")}
+      <div class="pc-info">
+        <div class="pc-name">${esc(p.name)}</div>
+        <div class="pc-meta">${esc(p.team || "—")} · ${esc(p.pos || "—")} · #${p.rank}</div>
+      </div>
+      <div class="sg-val ${p.total >= 0 ? "pos-good" : "pos-bad"}">${p.total >= 0 ? "+" : ""}${p.total.toFixed(1)}<span>z</span></div>
+    </div>`).join("");
+  grid.querySelectorAll(".stream-card[data-id]").forEach((el) =>
+    el.addEventListener("click", (e) => {
+      const star = e.target.closest(".star-btn[data-star]");
+      if (star) { e.stopPropagation(); toggleStar(star.dataset.star); return; }
+      const p = getPlayer(el.dataset.id); if (p) openModal(p);
+    }));
+}
 
 /* ---- positional rankings ---- */
 const POS_META = [
@@ -642,7 +706,8 @@ function renderSchedule() {
       (t.b2b ? `<div class="sc-b2b">${t.b2b} back-to-back${t.b2b > 1 ? "s" : ""}</div>` : "") +
       `<div class="sc-dates">${t.dates.map((d) => d.slice(5)).join(" · ")}</div></div>`;
   }).join("");
-  renderMyTeam();   // refresh the roster's weekly projection for the new week
+  renderMyTeam();     // refresh the roster's weekly projection for the new week
+  renderStreamers();  // streamer ranks are week-specific too
 }
 function gamesPerWeek(games, anchor) {
   const [mon, sun] = weekBounds(anchor), ms = fmtDate(mon), ss = fmtDate(sun);

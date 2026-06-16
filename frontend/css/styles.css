@@ -914,3 +914,30 @@ select { cursor:pointer; min-width:120px; }
 .cons-warn-bar { background:var(--gold); }
 .cons-bad-bar  { background:var(--bad); }
 .cons-foot { font-size:.68rem; color:var(--muted); line-height:1.4; }
+
+/* ===== best streamers ===== */
+.stream-controls { display:flex; align-items:center; flex-wrap:wrap; gap:14px; margin:6px 0 16px; }
+.seg { display:inline-flex; background:var(--panel); border:1px solid var(--panel-brd);
+  border-radius:10px; padding:3px; gap:2px; }
+.seg-btn { padding:7px 14px; border:none; background:transparent; color:var(--muted);
+  font:inherit; font-size:.82rem; font-weight:700; border-radius:8px; cursor:pointer; transition:all .15s; }
+.seg-btn:hover { color:var(--ink); }
+.seg-btn.active { background:rgba(238,103,48,.18); color:var(--orange-2); }
+.stream-toggle { display:inline-flex; align-items:center; gap:7px; color:var(--muted);
+  font-size:.85rem; cursor:pointer; user-select:none; }
+.stream-toggle input { accent-color:var(--orange); width:16px; height:16px; cursor:pointer; }
+
+.stream-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:11px; }
+.stream-card {
+  position:relative; display:grid; grid-template-columns:34px 46px 1fr auto; align-items:center;
+  gap:11px; padding:11px 14px 11px 11px; background:var(--panel);
+  border:1px solid var(--panel-brd); border-radius:14px; cursor:pointer; transition:all .18s;
+}
+.stream-card:hover { transform:translateY(-3px); border-color:rgba(238,103,48,.45); background:rgba(238,103,48,.05); }
+.sc-star { position:absolute; top:8px; right:10px; }
+.sg-games { display:flex; flex-direction:column; align-items:center; gap:0; }
+.sg-games b { font-family:"Archivo"; font-weight:900; font-size:1.3rem; color:var(--orange-2); line-height:1; }
+.sg-games span { font-size:.56rem; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+.stream-card .pc-info { min-width:0; }
+.sg-val { font-family:"Archivo"; font-weight:900; font-size:1.05rem; text-align:right; padding-right:14px; }
+.sg-val span { display:block; font-size:.56rem; font-weight:600; color:var(--muted); letter-spacing:.4px; text-transform:uppercase; }

@@ -30,6 +30,7 @@
       <a href="#trade">Trade</a>
       <a href="#myteam">My Team</a>
       <a href="#schedule">Schedule</a>
+      <a href="#streamers">Streamers</a>
       <a href="#leaders">Leaders</a>
       <a id="api-link" class="btn btn-ghost" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">API</a>
     </nav>
@@ -230,6 +231,23 @@
       <span id="wk-range" class="wk-range"></span>
     </div>
     <div class="sched-grid reveal" id="sched-grid"></div>
+  </section>
+
+  <!-- ===================== BEST STREAMERS ===================== -->
+  <section class="section" id="streamers">
+    <h2 class="section-title reveal">Best streamers</h2>
+    <p class="section-lead reveal">The most valuable adds for the week selected in Schedule above — per-game value weighted by how many games each team plays. Honors your punt settings; your starred roster is hidden by default.</p>
+    <div class="stream-controls reveal">
+      <div class="seg" id="stream-mingames" role="group" aria-label="Minimum games">
+        <button class="seg-btn active" data-min="3" type="button">≥ 3 games</button>
+        <button class="seg-btn" data-min="4" type="button">≥ 4 games</button>
+      </div>
+      <label class="stream-toggle"><input type="checkbox" id="stream-exclude" checked /> Hide my starred players</label>
+      <span id="stream-week" class="wk-range"></span>
+    </div>
+    <div class="stream-grid reveal" id="stream-grid">
+      <div class="board-loading">Pick a week in Schedule to see streaming targets…</div>
+    </div>
   </section>
 
   <!-- ===================== PUNT FIT FINDER ===================== -->
