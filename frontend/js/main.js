@@ -2408,6 +2408,27 @@ function bestPuntsForPlayer(player, top = 3) {
   return { baseRank, opts: opts.filter((o) => o.delta > 0).slice(0, top) };
 }
 
+// Waiver/target suggestions: players NOT on the roster who best fill its weak
+// (kept, non-punted) categories. Scored by the value they add in exactly those
+// categories, so the list answers "who fixes what I'm missing" rather than just
+// "who's good". Min-minutes floor avoids one-cat small-sample flukes.
+function recommendPickups(roster, needKeys, limit = 8) {
+  const needs = needKeys.filter((k) => !state.punts.has(k));
+  if (!needs.length) return { needs, picks: [] };
+  const owned = new Set(roster.map((p) => p.id));
+  const picks = rawPlayers
+    .filter((p) => !owned.has(p.id) && (p.min ?? 0) >= 20)
+    .map((p) => {
+      const help = needs.map((k) => ({ k, z: p.z?.[k] ?? 0 })).filter((h) => h.z > 0.2);
+      const fit = help.reduce((t, h) => t + h.z, 0);
+      return { p, fit, help: help.sort((a, b) => b.z - a.z) };
+    })
+    .filter((x) => x.help.length)
+    .sort((a, b) => b.fit - a.fit || fullZTotal(b.p) - fullZTotal(a.p))
+    .slice(0, limit);
+  return { needs, picks };
+}
+
 function optimizePunts(roster) {
   const ids = roster.map((p) => p.id);
   const scored = puntCombos(3).map((keys) => {
@@ -2502,6 +2523,21 @@ function renderMyTeam() {
     ? `<div class="mt-punt-note">Board currently punting <b>${[...state.punts].map((k) => k.toUpperCase()).join(", ")}</b>.</div>`
     : "";
 
+  // Pickup targets: best available players for the roster's weakest kept cats.
+  const needKeys = ranked.filter((c) => c.a < 0.15 && !state.punts.has(c.k)).slice(-3).reverse().map((c) => c.k);
+  const { needs, picks } = recommendPickups(roster, needKeys, 8);
+  const pickupPanel = picks.length ? `
+    <div class="mt-panel mt-pickups">
+      <div class="mt-panel-h">Pickup targets <small>best available for your needs: ${needs.map((k) => CAT_LABEL[k]).join(", ")}</small></div>
+      <div class="mt-pick-grid">${picks.map((x) => `
+        <div class="mt-pick">
+          <button class="mt-pick-add" data-star="${esc(x.p.id)}" title="Add to my team">+</button>
+          <span class="mt-pick-name" data-id="${esc(x.p.id)}" title="View details">${esc(x.p.name)}</span>
+          <span class="mt-pick-meta">${esc(x.p.pos || "—")} · ${esc(x.p.team || "—")}</span>
+          <span class="mt-pick-cats">${x.help.map((h) => `<i>${CAT_LABEL[h.k]} +${h.z.toFixed(1)}</i>`).join("")}</span>
+        </div>`).join("")}</div>
+    </div>` : "";
+
   const chips = roster.map((p) => {
     const tot = fullZTotal(p);
     return `<div class="mt-player">
@@ -2530,6 +2566,7 @@ function renderMyTeam() {
         <div class="mt-roster">${chips}</div>
       </div>
     </div>
+    ${pickupPanel}
     ${weeklyProjectionPanel(roster)}`;
 
   body.querySelectorAll(".mt-build[data-keys]").forEach((b) =>
@@ -2537,9 +2574,9 @@ function renderMyTeam() {
       const keys = b.dataset.keys ? b.dataset.keys.split(",") : [];
       applyPuntBuild(keys, false);
     }));
-  body.querySelectorAll(".mt-remove[data-star]").forEach((b) =>
+  body.querySelectorAll("[data-star]").forEach((b) =>
     b.addEventListener("click", () => toggleStar(b.dataset.star)));
-  body.querySelectorAll(".mt-pname[data-id]").forEach((el) =>
+  body.querySelectorAll("[data-id]").forEach((el) =>
     el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
 }
 

@@ -963,6 +963,21 @@ select option, select optgroup { background-color:#11151f; color:var(--ink); }
 .mt-build-on { grid-column:1 / -1; font-size:.66rem; font-weight:700; color:var(--orange-2); letter-spacing:.3px; }
 .mt-punt-note { font-size:.76rem; color:var(--muted); margin-top:10px; }
 .mt-punt-note b { color:var(--orange-2); font-weight:800; }
+/* pickup targets */
+.mt-pickups { margin-top:16px; }
+.mt-pick-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; margin-top:10px; }
+.mt-pick { position:relative; background:rgba(255,255,255,.03); border:1px solid var(--panel-brd);
+  border-radius:12px; padding:11px 12px 10px; display:flex; flex-direction:column; gap:3px; }
+.mt-pick-add { position:absolute; top:9px; right:9px; width:22px; height:22px; border-radius:50%;
+  border:1px solid rgba(238,103,48,.4); background:rgba(238,103,48,.12); color:var(--orange-2);
+  font-size:1rem; font-weight:800; line-height:1; cursor:pointer; transition:all .15s; }
+.mt-pick-add:hover { background:var(--orange); color:#1a0e07; }
+.mt-pick-name { font-weight:700; font-size:.9rem; cursor:pointer; padding-right:24px; }
+.mt-pick-name:hover { color:var(--orange-2); }
+.mt-pick-meta { font-size:.74rem; color:var(--muted); }
+.mt-pick-cats { display:flex; flex-wrap:wrap; gap:5px; margin-top:5px; }
+.mt-pick-cats i { font-style:normal; font-size:.68rem; font-weight:700; color:var(--good);
+  background:rgba(68,208,123,.12); border-radius:6px; padding:2px 6px; }
 
 .mt-roster { display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; }
 .mt-player {
