@@ -1117,6 +1117,12 @@ select option, select optgroup { background-color:#11151f; color:var(--ink); }
 .mu-row.mu-loss .mu-b { color:var(--bad); }
 .mu-row.mu-loss { border-color:rgba(255,92,108,.3); background:rgba(255,92,108,.06); }
 .mu-row.mu-tie  .mu-a, .mu-row.mu-tie .mu-b { color:var(--gold); }
+.mu-row.mu-close { border-style:dashed; }
+.mu-swing { font-style:normal; color:var(--gold); font-weight:800; cursor:help; }
+.mu-swings { margin-top:14px; font-size:.8rem; color:var(--muted); line-height:1.5;
+  background:rgba(255,194,75,.08); border:1px solid rgba(255,194,75,.25); border-radius:10px; padding:10px 12px; }
+.mu-swings b { color:var(--gold); font-weight:800; }
+.mu-swings-clear { background:rgba(68,208,123,.07); border-color:rgba(68,208,123,.22); }
 
 /* ===== team logos ===== */
 .tlogo { width:16px; height:16px; object-fit:contain; vertical-align:-3px; margin-right:5px; }

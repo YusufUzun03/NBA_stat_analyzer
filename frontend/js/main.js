@@ -1305,16 +1305,21 @@ function renderMatchup() {
     ? (side.games ? dispVal(side, k).toFixed(1) + "%" : "—")
     : dispVal(side, k).toLocaleString("en-US");
   let win = 0, loss = 0, tie = 0;
+  const swing = [];   // categories close enough to flip (toss-ups)
   const rows = CATS.map((c) => {
     const k = c.k, inv = k === "tov";
     const a = dispVal(A, k), b = dispVal(B, k);
     let r = a === b ? 0 : (a > b ? 1 : -1);
     if (inv) r = -r;                 // fewer turnovers wins
     if (r > 0) win++; else if (r < 0) loss++; else tie++;
+    // Margin relative to the larger side: small margin = realistic toss-up.
+    const margin = Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b), 1);
+    const close = r !== 0 && margin < 0.06;
+    if (close) swing.push(c.l);
     const cls = r > 0 ? "mu-win" : r < 0 ? "mu-loss" : "mu-tie";
-    return `<div class="mu-row ${cls}">
+    return `<div class="mu-row ${cls}${close ? " mu-close" : ""}">
       <span class="mu-a">${dispTxt(A, k)}</span>
-      <span class="mu-cat">${c.l}</span>
+      <span class="mu-cat">${c.l}${close ? ' <i class="mu-swing" title="Within 6% — could flip">~</i>' : ""}</span>
       <span class="mu-b">${dispTxt(B, k)}</span>
     </div>`;
   }).join("");
@@ -1322,12 +1327,17 @@ function renderMatchup() {
   const verdict = win > loss ? { t: "Projected win", c: "var(--good)" }
     : win < loss ? { t: "Projected loss", c: "var(--bad)" }
     : { t: "Projected tie", c: "var(--gold)" };
+  // Range view: if the toss-ups all broke the other way, what's the worst case?
+  const swingNote = swing.length
+    ? `<div class="mu-swings"><b>${swing.length} toss-up${swing.length > 1 ? "s" : ""}</b> (within 6%): ${swing.join(", ")} — the week could swing on these.</div>`
+    : `<div class="mu-swings mu-swings-clear">No toss-up categories — a fairly clean projection.</div>`;
   box.innerHTML = `
     <div class="mu-score" style="color:${verdict.c}"><b>${win}</b><span>–</span><b>${loss}</b>${tie ? `<small>(${tie} tie${tie > 1 ? "s" : ""})</small>` : ""}</div>
     <div class="mu-verdict" style="color:${verdict.c}">${verdict.t}</div>
     <div class="mu-games">${A.games} vs ${B.games} games this week</div>
     <div class="mu-head"><span>You</span><span>Cat</span><span>Opp</span></div>
-    <div class="mu-rows">${rows}</div>`;
+    <div class="mu-rows">${rows}</div>
+    ${swingNote}`;
 }
 
 /* ---- punt fit finder ---- */
