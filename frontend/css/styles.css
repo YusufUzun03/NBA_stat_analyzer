@@ -398,7 +398,10 @@ input[type="search"], select {
   border-radius:10px; padding:10px 12px; font:inherit; font-size:.92rem; outline:none;
   transition:border-color .2s; }
 input[type="search"]:focus, select:focus { border-color:rgba(238,103,48,.55); }
-select { cursor:pointer; min-width:120px; }
+/* solid dark background so the native option popup isn't white-on-white
+   (the translucent --panel composited to white on some OSes) */
+select { cursor:pointer; min-width:120px; background-color:#11151f; color:var(--ink); }
+select option, select optgroup { background-color:#11151f; color:var(--ink); }
 .tool input[type="range"] { width:150px; accent-color:var(--orange); cursor:pointer; }
 .tool.disabled { opacity:.4; pointer-events:none; }
 
