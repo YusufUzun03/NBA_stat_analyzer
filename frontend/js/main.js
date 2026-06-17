@@ -911,6 +911,21 @@ function teamNames() {
       (standingsData.seasons[yr][conf] || []).forEach((r) => { if (r.abbr) TEAM_NAMES[r.abbr] = r.team; });
   return TEAM_NAMES;
 }
+function teamWinSparkline(recs) {
+  const pts = recs.map((r) => parseFloat(r.pct)).filter((v) => !isNaN(v));
+  if (pts.length < 2) return "";
+  const W = 560, H = 70, pad = 6, w = W - pad * 2, h = H - pad * 2;
+  const x = (i) => pad + (i / (pts.length - 1)) * w;
+  const y = (v) => pad + h - v * h;
+  const line = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const area = `M${x(0).toFixed(1)},${H - pad} ` + pts.map((v, i) => `L${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ") + ` L${x(pts.length - 1).toFixed(1)},${H - pad} Z`;
+  const ref = y(0.5).toFixed(1);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px;display:block" xmlns="http://www.w3.org/2000/svg">` +
+    `<line x1="${pad}" y1="${ref}" x2="${W - pad}" y2="${ref}" stroke="rgba(255,255,255,.14)" stroke-dasharray="3 3"/>` +
+    `<path d="${area}" fill="rgba(238,103,48,.12)"/>` +
+    `<path d="${line}" fill="none" stroke="#ee6730" stroke-width="2" stroke-linejoin="round"/>` +
+    `<circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(pts[pts.length - 1]).toFixed(1)}" r="3" fill="#ee6730"/></svg>`;
+}
 async function openTeamModal(abbr) {
   abbr = (abbr || "").toUpperCase();
   if (!abbr || !teamLogoURL(abbr)) return;     // skip multi-team / unknown
@@ -922,23 +937,34 @@ async function openTeamModal(abbr) {
   document.body.style.overflow = "hidden";
   lastFocused = document.activeElement;
 
-  const [st, hi] = await Promise.all([loadStandings(), loadHistory()]);
+  const [st, hi, po] = await Promise.all([loadStandings(), loadHistory(), loadPlayoffs()]);
   const name = teamNames()[abbr] || abbr;
+  const exitFor = (season) => {
+    const mine = ((po?.seasons || {})[season] || []).filter((s) => s.winner_abbr === abbr || s.loser_abbr === abbr);
+    if (!mine.length) return "—";
+    const lost = mine.find((s) => s.loser_abbr === abbr);
+    if (!lost) return mine.some((s) => s.stage === "Finals" && s.winner_abbr === abbr) ? "🏆 Champion" : "Won " + mine[mine.length - 1].stage;
+    return "Lost " + lost.stage;
+  };
   const recs = [];
   if (st) for (const yr of Object.keys(st.seasons))
     for (const conf of ["East", "West"]) {
       const r = (st.seasons[yr][conf] || []).find((x) => x.abbr === abbr);
-      if (r) recs.push({ season: yr, conf, seed: r.seed, w: r.w, l: r.l, pct: r.pct });
+      if (r) recs.push({ season: yr, conf, seed: r.seed, w: r.w, l: r.l, pct: r.pct, po: exitFor(yr) });
     }
+  // recs are ascending (oldest first) → sparkline before we reverse for the table
+  const spark = teamWinSparkline(recs);
   recs.reverse();
   const titles = (hi?.champions || []).filter((c) => c.champion_abbr === abbr).map((c) => c.season);
   const runners = (hi?.champions || []).filter((c) => c.runner_up_abbr === abbr).map((c) => c.season);
   const roster = rawPlayers.filter((p) => (p.team || "").toUpperCase() === abbr)
     .map((p) => ({ ...p, t: fullZTotal(p) })).sort((a, b) => b.t - a.t);
 
+  const poClass = (t) => t.startsWith("🏆") ? "tm-po-champ" : t.startsWith("Lost") ? "tm-po-out" : t === "—" ? "tm-po-none" : "tm-po-win";
   const recRows = recs.map((r) => `<tr>
       <td class="cat-lbl">${esc(r.season)}</td><td>${esc(r.conf)} ${esc(r.seed)}</td>
-      <td>${esc(r.w)}–${esc(r.l)}</td><td>${esc(r.pct)}</td></tr>`).join("");
+      <td>${esc(r.w)}–${esc(r.l)}</td><td>${esc(r.pct)}</td>
+      <td class="${poClass(r.po)}">${esc(r.po)}</td></tr>`).join("");
   const rosterHtml = roster.length ? `<div class="tm-sec-h">Current roster <small>${state.season}</small></div>
     <div class="tm-roster">${roster.map((p) => `<button class="tm-pl" data-id="${esc(p.id)}">
       <span>${esc(p.name)}</span><span class="tm-pl-meta">${esc(p.pos || "")} · <b class="${p.t >= 0 ? "pos-good" : "pos-bad"}">${p.t >= 0 ? "+" : ""}${p.t.toFixed(1)}</b></span></button>`).join("")}</div>` : "";
@@ -954,9 +980,10 @@ async function openTeamModal(abbr) {
     </div>
     ${rosterHtml}
     <div class="tm-sec-h">Season by season <small>since 2000-01</small></div>
+    ${spark ? `<div class="tm-spark">${spark}<span class="tm-spark-lbl">win % by season</span></div>` : ""}
     <div class="career-table-wrap"><table class="career-tbl"><thead><tr>
-      <th class="cat-lbl">Season</th><th>Conf · Seed</th><th>W–L</th><th>Win%</th></tr></thead>
-      <tbody>${recRows || '<tr><td colspan="4" class="cat-lbl">No records.</td></tr>'}</tbody></table></div>`;
+      <th class="cat-lbl">Season</th><th>Conf · Seed</th><th>W–L</th><th>Win%</th><th>Playoffs</th></tr></thead>
+      <tbody>${recRows || '<tr><td colspan="5" class="cat-lbl">No records.</td></tr>'}</tbody></table></div>`;
 
   content.querySelectorAll(".tm-pl[data-id]").forEach((b) =>
     b.addEventListener("click", () => { const p = getPlayer(b.dataset.id); if (p) openModal(p); }));

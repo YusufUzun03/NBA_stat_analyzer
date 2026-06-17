@@ -1244,3 +1244,9 @@ select { cursor:pointer; min-width:120px; }
 .tm-pl:hover { border-color:rgba(238,103,48,.45); background:rgba(238,103,48,.05); }
 .tm-pl > span:first-child { font-weight:600; font-size:.85rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tm-pl-meta { color:var(--muted); font-size:.76rem; white-space:nowrap; }
+.tm-spark { margin-bottom:12px; }
+.tm-spark-lbl { display:block; font-size:.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
+.career-tbl td.tm-po-champ { color:var(--gold); font-weight:700; }
+.career-tbl td.tm-po-out { color:var(--muted); }
+.career-tbl td.tm-po-win { color:var(--good); }
+.career-tbl td.tm-po-none { color:rgba(255,255,255,.25); }
