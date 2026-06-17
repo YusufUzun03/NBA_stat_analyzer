@@ -2503,6 +2503,15 @@ function renderMyTeam() {
   // the ones your specific players are most elite in — one click applies any.
   const opt = optimizePunts(roster);
   const fmtFit = (v) => Math.round(v * 100);
+  // Roster grade from the best build's mean league percentile — a principled
+  // number (how elite your players are in their best build), not a vibe.
+  const gradeFromFit = (f) =>
+    f >= 0.90 ? { g: "A+", c: "var(--good)" } : f >= 0.83 ? { g: "A", c: "var(--good)" }
+    : f >= 0.75 ? { g: "A-", c: "var(--good)" } : f >= 0.68 ? { g: "B+", c: "var(--gold)" }
+    : f >= 0.60 ? { g: "B", c: "var(--gold)" } : f >= 0.52 ? { g: "B-", c: "var(--gold)" }
+    : f >= 0.44 ? { g: "C+", c: "var(--orange-2)" } : f >= 0.36 ? { g: "C", c: "var(--orange-2)" }
+    : { g: "D", c: "var(--bad)" };
+  const grade = gradeFromFit(opt.builds[0].fit);
   const buildLabel = (keys) => keys.length ? "Punt " + keys.map((k) => CAT_LABEL[k]).join(" + ") : "No punt";
   // Show the no-punt baseline plus the best builds that actually beat it, deduped.
   const top = opt.builds.slice(0, 5).filter((b, i, a) =>
@@ -2569,6 +2578,7 @@ function renderMyTeam() {
 
   body.innerHTML = `
     <div class="mt-summary">
+      <div class="mt-stat"><b style="color:${grade.c}">${grade.g}</b><span>roster grade</span></div>
       <div class="mt-stat"><b>${roster.length}</b><span>players</span></div>
       <div class="mt-stat"><b class="${teamTotal >= 0 ? "pos-good" : "pos-bad"}">${teamTotal >= 0 ? "+" : ""}${teamTotal.toFixed(1)}</b><span>total z</span></div>
       <div class="mt-stat"><b>${ranked.filter((c) => c.a >= 0.15).length}/9</b><span>cats above avg</span></div>
