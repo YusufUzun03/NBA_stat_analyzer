@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.config import DEFAULT_SEASON, DEFAULT_POOL
 from app.data.nba_client import get_player_stats
-from app.engine.zscore import compute_values, MIN_MINUTES
+from app.engine.zscore import compute_values
 
 SEASON = DEFAULT_SEASON
 OUT = Path(__file__).parent.parent.parent / "frontend" / "data" / f"players-{SEASON}.json"
