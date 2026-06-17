@@ -761,11 +761,11 @@ function initTools() {
 function refreshTools() { renderTradeLists(); renderTrade(); renderPuntFit(); renderPositions(); renderStreamers(); renderTiers(); }
 
 /* ---- NBA history hub (champions, awards, All-NBA, leaders, HOF, standings) ---- */
-let historyData = null, standingsData = null, playoffsData = null;
+let historyData = null, standingsData = null, playoffsData = null, allstarData = null;
 let histTab = "champions";
 let histAwardKey = "mvp";
 let histChampsAll = false, histHofAll = false, histAllNbaAll = false;
-let histStandingsSeason = null, histPoSeason = null;
+let histStandingsSeason = null, histPoSeason = null, histAsSeason = null;
 async function loadHistory() {
   if (historyData) return historyData;
   try { const r = await fetch("data/history.json"); if (r.ok) historyData = await r.json(); } catch {}
@@ -780,6 +780,11 @@ async function loadPlayoffs() {
   if (playoffsData) return playoffsData;
   try { const r = await fetch("data/playoffs.json"); if (r.ok) playoffsData = await r.json(); } catch {}
   return playoffsData;
+}
+async function loadAllStar() {
+  if (allstarData) return allstarData;
+  try { const r = await fetch("data/allstar.json"); if (r.ok) allstarData = await r.json(); } catch {}
+  return allstarData;
 }
 const PO_STAGES = ["First Round", "Conf Semifinals", "Conf Finals", "Finals"];
 function initHistoryTabs() {
@@ -898,6 +903,25 @@ async function renderHistory() {
       `</select></div>` +
       `<div class="po-bracket">${PO_STAGES.map(col).join("")}</div>`;
     document.getElementById("po-season")?.addEventListener("change", (e) => { histPoSeason = e.target.value; renderHistory(); });
+
+  } else if (histTab === "allstar") {
+    body.innerHTML = `<div class="board-loading">Loading rosters…</div>`;
+    const a = await loadAllStar();
+    if (!a) { body.innerHTML = '<div class="board-loading">All-Star data unavailable.</div>'; return; }
+    const seasons = Object.keys(a.seasons);
+    if (!histAsSeason || !a.seasons[histAsSeason])
+      histAsSeason = a.seasons[state.season] ? state.season : seasons[0];
+    const rosters = a.seasons[histAsSeason] || [];
+    body.innerHTML =
+      `<div class="stand-bar"><label>Season</label><select id="as-season">` +
+        seasons.map((yr) => `<option ${yr === histAsSeason ? "selected" : ""}>${yr}</option>`).join("") +
+      `</select></div>` +
+      `<div class="as-grid">` + rosters.map((r) => `
+        <div class="as-card">
+          <div class="as-team">${esc(r.name)} <small>${r.players.length}</small></div>
+          <div class="as-players">${r.players.map((p) => `<span>${esc(p)}</span>`).join("")}</div>
+        </div>`).join("") + `</div>`;
+    document.getElementById("as-season")?.addEventListener("change", (e) => { histAsSeason = e.target.value; renderHistory(); });
   }
 }
 
