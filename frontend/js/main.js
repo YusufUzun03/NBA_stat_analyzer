@@ -1591,6 +1591,11 @@ function openModal(p) {
       btn.classList.toggle("in-cmp", inCmp);
     }
   });
+  // Best-punt-fit chips (in the Fantasy Stats tab): apply that punt to the board.
+  content.addEventListener("click", (e) => {
+    const chip = e.target.closest(".mbp-chip[data-k]");
+    if (chip) { applyPuntBuild([chip.dataset.k]); closeModal(); }
+  });
   // Watchlist (star) button
   content.querySelector(".modal-star-btn")?.addEventListener("click", () => {
     toggleStar(p.id);
@@ -1658,6 +1663,13 @@ function buildStatsTabHTML(p) {
       <div class="adv-cell"><span class="adv-lbl">BPM</span><b class="adv-val" style="${bpmColor(adv.bpm)}">${adv.bpm != null ? (adv.bpm >= 0 ? "+" : "") + (+adv.bpm).toFixed(1) : "—"}</b></div>
       <div class="adv-cell"><span class="adv-lbl">VORP</span><b class="adv-val">${fmtAdv(adv.vorp)}</b></div>
     </div>`;
+  const bp = bestPuntsForPlayer(p, 3);
+  const bpSection = bp.opts.length ? `
+    <div class="mbp">
+      <div class="mbp-h">Best punt fits <small>where ${esc((p.name || "").split(" ")[0])} climbs the league most — tap to apply</small></div>
+      <div class="mbp-row">${bp.opts.map((o) =>
+        `<button class="mbp-chip" data-k="${o.k}" type="button">Punt ${CAT_LABEL[o.k]} <b>#${bp.baseRank}→#${o.rank}</b> <i>▲${o.delta}</i></button>`).join("")}</div>
+    </div>` : "";
   return `
     <div class="modal-body">
       <div class="modal-radar">${radarSVG([p], 230)}</div>
@@ -1683,7 +1695,8 @@ function buildStatsTabHTML(p) {
         return `<div class="mraw-cell"><span>${c.l}</span><b>${RAW_FMT(c.k, raw)}</b></div>`;
       }).join("")}
     </div>
-    ${advSection}`;
+    ${advSection}
+    ${bpSection}`;
 }
 
 /* ---- category leaders ---- */
@@ -2380,6 +2393,21 @@ function rosterFit(rosterIds, punt) {
 // penalty means a cat is only worth punting if it adds more than ~1.2 percentile
 // points — which keeps balanced rosters at "no punt" and trims junk 3rd punts.
 const PUNT_PENALTY = 0.012;
+// Single-category punt impact on ONE player's league rank: which punts raise
+// this player's value most — the categories worth building a team around them.
+// Client-side twin of the backend's punt.best_punts_for_player.
+function bestPuntsForPlayer(player, top = 3) {
+  const rankUnder = (skip) => {
+    const tot = (p) => { let t = 0; for (const k of CAT_KEYS) if (k !== skip) t += p.z?.[k] ?? 0; return t; };
+    const order = rawPlayers.map((p) => ({ id: p.id, t: tot(p) })).sort((a, b) => b.t - a.t);
+    return order.findIndex((x) => x.id === player.id) + 1;
+  };
+  const baseRank = rankUnder(null);
+  const opts = CAT_KEYS.map((k) => { const rank = rankUnder(k); return { k, rank, delta: baseRank - rank }; });
+  opts.sort((a, b) => b.delta - a.delta);
+  return { baseRank, opts: opts.filter((o) => o.delta > 0).slice(0, top) };
+}
+
 function optimizePunts(roster) {
   const ids = roster.map((p) => p.id);
   const scored = puntCombos(3).map((keys) => {

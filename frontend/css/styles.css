@@ -811,6 +811,18 @@ select option, select optgroup { background-color:#11151f; color:var(--ink); }
   text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
 .adv-val { display:block; font-family:"Archivo"; font-size:1rem; font-weight:900; }
 
+/* best punt fits (player modal) */
+.mbp { margin-top:16px; padding-top:14px; border-top:1px solid var(--panel-brd); }
+.mbp-h { font-size:.8rem; font-weight:800; letter-spacing:.3px; text-transform:uppercase; color:var(--muted); margin-bottom:9px; }
+.mbp-h small { display:block; margin-top:3px; font-size:.72rem; font-weight:500; letter-spacing:0; text-transform:none; }
+.mbp-row { display:flex; flex-wrap:wrap; gap:8px; }
+.mbp-chip { display:inline-flex; align-items:center; gap:6px; font-family:inherit; font-size:.82rem;
+  color:var(--ink); background:rgba(238,103,48,.1); border:1px solid rgba(238,103,48,.32);
+  border-radius:999px; padding:6px 12px; cursor:pointer; transition:all .15s; }
+.mbp-chip:hover { background:rgba(238,103,48,.2); transform:translateY(-1px); }
+.mbp-chip b { font-family:"Archivo"; font-weight:800; }
+.mbp-chip i { font-style:normal; color:var(--good); font-weight:800; }
+
 /* ===== recent form tab ===== */
 .recent-n-toggle { display:flex; gap:6px; margin-bottom:14px; }
 .rnt-btn { padding:6px 14px; border:1px solid var(--panel-brd); border-radius:8px;
