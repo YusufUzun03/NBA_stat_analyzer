@@ -2755,6 +2755,7 @@ function importHTML() {
     <div class="imp-tabs">
       <button class="imp-tab active" data-t="paste" type="button">Paste names</button>
       <button class="imp-tab" data-t="sleeper" type="button">Sleeper league</button>
+      <button class="imp-tab" data-t="yahoo" type="button">Yahoo league</button>
     </div>
     <div id="imp-body"></div>`;
 }
@@ -2762,9 +2763,9 @@ function importHTML() {
 function showImportTab(root, which) {
   root.querySelectorAll(".imp-tab").forEach((t) => t.classList.toggle("active", t.dataset.t === which));
   const body = root.querySelector("#imp-body");
-  body.innerHTML = which === "sleeper" ? sleeperPanelHTML() : pastePanelHTML();
-  if (which === "sleeper") wireSleeperPanel(body);
-  else wirePastePanel(body);
+  if (which === "yahoo") { body.innerHTML = yahooPanelHTML(); wireYahooPanel(body); }
+  else if (which === "sleeper") { body.innerHTML = sleeperPanelHTML(); wireSleeperPanel(body); }
+  else { body.innerHTML = pastePanelHTML(); wirePastePanel(body); }
 }
 
 function pastePanelHTML() {
@@ -2841,6 +2842,99 @@ function setBusy(btn, busy, label) {
   if (!btn) return;
   btn.disabled = busy;
   if (label != null) btn.textContent = label;
+}
+
+// --- Yahoo (via the local BoxScore backend acting as an OAuth proxy) --------
+// Yahoo needs OAuth + a client secret and serves no CORS, so unlike Sleeper it
+// can't be reached from the browser directly — the FastAPI backend proxies it.
+// That backend is local, so this tab talks to ?api=… (or the local default).
+const yahooBase = () => (API || "http://127.0.0.1:8000").replace(/\/$/, "");
+
+function yahooPanelHTML() {
+  return `
+    <p class="imp-lead">Pull your Yahoo roster automatically. Yahoo requires a login, so this runs through your <b>local BoxScore backend</b> (it holds the secret Yahoo needs). Make sure the backend is running.</p>
+    <div id="imp-yahoo"><div class="imp-loading">Checking Yahoo connection…</div></div>
+    <div id="imp-teams"></div>
+    <div id="imp-result"></div>`;
+}
+
+async function wireYahooPanel(body) {
+  const statusEl = body.querySelector("#imp-yahoo");
+  const teamsEl = body.querySelector("#imp-teams");
+  const resultEl = body.querySelector("#imp-result");
+  const base = yahooBase();
+
+  let status;
+  try {
+    const r = await fetch(`${base}/api/yahoo/status`);
+    if (!r.ok) throw new Error();
+    status = await r.json();
+  } catch {
+    statusEl.innerHTML = `<div class="imp-miss">Couldn't reach the BoxScore backend at <code>${esc(base)}</code>.
+      Start it (<code>uvicorn app.main:app</code>) and open the site with <code>?api=${esc(base)}</code>, then reopen this tab.</div>`;
+    return;
+  }
+  if (!status.configured) {
+    statusEl.innerHTML = `<div class="imp-miss">Yahoo isn't set up on the backend yet. Add <code>YAHOO_CLIENT_ID</code> / <code>YAHOO_CLIENT_SECRET</code> (see <b>YAHOO_SETUP.md</b>), restart the backend, then reopen this tab.</div>`;
+    return;
+  }
+
+  const loadTeams = async () => {
+    teamsEl.innerHTML = `<div class="imp-loading">Loading your Yahoo teams…</div>`;
+    resultEl.innerHTML = "";
+    try {
+      const r = await fetch(`${base}/api/yahoo/teams`);
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || "Couldn't load your teams."); }
+      const { teams } = await r.json();
+      if (!teams?.length) { teamsEl.innerHTML = `<div class="imp-miss">No NBA teams found on your Yahoo account this season.</div>`; return; }
+      teamsEl.innerHTML = `
+        <div class="imp-lead imp-lg-name">Pick your team:</div>
+        <div class="imp-teamgrid">${teams.map((t, i) =>
+          `<button class="imp-team" data-i="${i}" type="button">${esc(t.name)} <span>${t.players.length}</span></button>`).join("")}</div>`;
+      teamsEl.querySelectorAll(".imp-team").forEach((b) => b.addEventListener("click", () => {
+        teamsEl.querySelectorAll(".imp-team").forEach((x) => x.classList.toggle("active", x === b));
+        renderImportResult(resultEl, resolveRoster(teams[+b.dataset.i].players));
+      }));
+    } catch (err) { teamsEl.innerHTML = `<div class="imp-miss">${esc(err.message)}</div>`; }
+  };
+
+  const renderConnected = () => {
+    statusEl.innerHTML = `
+      <div class="imp-row">
+        <button class="btn btn-primary" id="y-load" type="button">Load my teams</button>
+        <button class="btn btn-ghost" id="y-disc" type="button">Disconnect</button>
+      </div>`;
+    statusEl.querySelector("#y-load").addEventListener("click", loadTeams);
+    statusEl.querySelector("#y-disc").addEventListener("click", async () => {
+      await fetch(`${base}/api/yahoo/disconnect`, { method: "POST" }).catch(() => {});
+      teamsEl.innerHTML = ""; resultEl.innerHTML = ""; renderDisconnected();
+    });
+    loadTeams();   // connected already — jump straight to teams
+  };
+
+  const renderDisconnected = () => {
+    statusEl.innerHTML = `<button class="btn btn-primary" id="y-conn" type="button">Connect Yahoo →</button>`;
+    statusEl.querySelector("#y-conn").addEventListener("click", () => {
+      const popup = window.open(`${base}/api/yahoo/login`, "yahoo-auth", "width=520,height=680");
+      statusEl.querySelector("#y-conn").textContent = "Waiting for Yahoo login…";
+      setBusy(statusEl.querySelector("#y-conn"), true);
+      // Poll connection status until the OAuth round-trip completes.
+      let tries = 0;
+      const timer = setInterval(async () => {
+        tries++;
+        let connected = false;
+        try { connected = (await (await fetch(`${base}/api/yahoo/status`)).json()).connected; } catch {}
+        if (connected) { clearInterval(timer); try { popup?.close(); } catch {} renderConnected(); }
+        else if (tries > 120 || (popup && popup.closed && tries > 2)) {
+          clearInterval(timer);
+          renderDisconnected();
+          if (tries > 120) showToast("Yahoo login timed out — try again.", true);
+        }
+      }, 1500);
+    });
+  };
+
+  if (status.connected) renderConnected(); else renderDisconnected();
 }
 
 function renderImportResult(el, { matched, unmatched }) {

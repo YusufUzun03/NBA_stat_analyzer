@@ -29,6 +29,14 @@ def current_season(today: date | None = None) -> str:
 # Default current season in nba_api format ("2025-26"). Override with NBA_SEASON.
 DEFAULT_SEASON = os.getenv("NBA_SEASON") or current_season()
 
+# --- Yahoo Fantasy OAuth (optional; enables auto-importing a Yahoo roster) ---
+# Register an app at https://developer.yahoo.com/apps/ with Fantasy Sports
+# *Read* permission, then set these in the environment (or a .env). The redirect
+# URI must match the one registered on the Yahoo app exactly.
+YAHOO_CLIENT_ID = os.getenv("YAHOO_CLIENT_ID", "")
+YAHOO_CLIENT_SECRET = os.getenv("YAHOO_CLIENT_SECRET", "")
+YAHOO_REDIRECT_URI = os.getenv("YAHOO_REDIRECT_URI", "http://localhost:8000/api/yahoo/callback")
+
 # Default player-pool size for z-score baselines (12 teams x 13 spots).
 DEFAULT_POOL = 156
 
