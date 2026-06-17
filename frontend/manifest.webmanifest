@@ -1,0 +1,16 @@
+{
+  "name": "BoxScore — NBA Fantasy Stat Analyzer",
+  "short_name": "BoxScore",
+  "description": "9-category z-score rankings, punts, trades, draft tiers, matchups and 26 seasons of NBA history.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0c14",
+  "theme_color": "#0a0c14",
+  "categories": ["sports"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

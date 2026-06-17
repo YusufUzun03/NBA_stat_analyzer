@@ -56,6 +56,11 @@ const DEFAULTS = { season: "2025-26", pool: 156, minMin: 12, punts: [],
 let state = loadState();
 let rawPlayers = [];   // current fetched set (full z, no punt applied)
 
+// PWA: register the service worker for offline/installable support.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+}
+
 /* ---------- watchlist (starred players) ---------- */
 const WATCH_KEY = "hoopiq_watchlist";
 let watchlist = loadWatchlist();   // Set of player ids
