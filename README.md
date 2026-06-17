@@ -21,7 +21,8 @@ no API key; it runs entirely from static data snapshots that refresh nightly.
 | Draft tiers | Rosterable pool grouped into value tiers — a printable snake-draft cheat sheet. |
 | Positional rankings | Top values at each position (PG/SG/SF/PF/C). |
 | Trade analyzer | Compare both sides category-by-category with a letter grade. |
-| My Team | Star players (or **import** a roster) → category strengths, recommended punt build, weekly projection. |
+| My Team | Star players (or **import** a roster) → category strengths, a **punt optimizer**, weekly projection. |
+| Punt optimizer | Searches punt builds (up to 3 cats) and ranks them by your roster's average league-wide percentile under each — i.e. the build your *specific* players are most elite in, not just your weakest categories. One click applies any build to the board. |
 | Roster import | Build My Team in one shot: paste a name list from any platform, or pull a **Sleeper** league by ID. Names are fuzzy-matched to players (diacritics/suffixes handled); runs fully client-side, no login. |
 | Matchup simulator | Project a head-to-head week and a category score (e.g. 6–3). |
 | Schedule & streamers | Weekly Mon–Sun calendar, back-to-backs, and best schedule-weighted pickups. |

@@ -2338,6 +2338,61 @@ function weeklyProjectionPanel(roster) {
   </div>`;
 }
 
+/* ---- punt optimizer ---------------------------------------------------- */
+// Instead of the naive "punt your 3 weakest categories", search candidate punt
+// builds and score each by how elite the *roster* is league-wide under it: for
+// a punt set, re-rank the whole player pool by kept-category z, then take the
+// roster's mean pool percentile. A build helps only if your players climb the
+// league in it — which is exactly the value punting actually delivers (your
+// specific roster's weaknesses stop counting). Percentiles are normalized
+// [0,1], so builds with different punt counts stay directly comparable.
+const CAT_LABEL = Object.fromEntries(CATS.map((c) => [c.k, c.l]));
+
+// Every category subset up to `maxSize` (includes the empty set = no punt).
+function puntCombos(maxSize = 3) {
+  const keys = CAT_KEYS, out = [[]];
+  const rec = (start, cur) => {
+    if (cur.length === maxSize) return;
+    for (let i = start; i < keys.length; i++) {
+      const next = [...cur, keys[i]];
+      out.push(next);
+      rec(i + 1, next);
+    }
+  };
+  rec(0, []);
+  return out;
+}
+
+// Mean league-pool percentile of the roster under a punt set (1 = pool-best).
+function rosterFit(rosterIds, punt) {
+  const punted = new Set(punt);
+  const tot = (p) => { let t = 0; for (const k of CAT_KEYS) if (!punted.has(k)) t += p.z?.[k] ?? 0; return t; };
+  const order = rawPlayers.map((p) => ({ id: p.id, t: tot(p) })).sort((a, b) => b.t - a.t);
+  const N = order.length, pct = {};
+  order.forEach((x, i) => (pct[x.id] = N > 1 ? (N - 1 - i) / (N - 1) : 1));
+  const ps = rosterIds.map((id) => pct[id]).filter((v) => v != null);
+  return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : 0;
+}
+
+// Each extra punted category costs PUNT_PENALTY of "fit" in the ranking. Pure
+// percentile would greedily punt every slightly-weak cat (more cats dropped ≈
+// higher percentile), ignoring the real cost of giving up a category. The
+// penalty means a cat is only worth punting if it adds more than ~1.2 percentile
+// points — which keeps balanced rosters at "no punt" and trims junk 3rd punts.
+const PUNT_PENALTY = 0.012;
+function optimizePunts(roster) {
+  const ids = roster.map((p) => p.id);
+  const scored = puntCombos(3).map((keys) => {
+    const fit = rosterFit(ids, keys);
+    return { keys, fit, score: fit - PUNT_PENALTY * keys.length };
+  });
+  const base = scored.find((s) => s.keys.length === 0)?.fit ?? 0;
+  scored.forEach((s) => (s.delta = s.fit - base));   // delta is real percentile gain
+  // Rank by penalized score; tie-break toward the simpler (fewer-punt) build.
+  scored.sort((a, b) => b.score - a.score || a.keys.length - b.keys.length);
+  return { base, builds: scored };
+}
+
 function renderMyTeam() {
   const body = document.getElementById("myteam-body");
   if (!body) return;
@@ -2384,27 +2439,36 @@ function renderMyTeam() {
     </div>`;
   }).join("");
 
-  // Recommended punts: the categories you're meaningfully behind in. Punting a
-  // cat you can't win frees value everywhere else — so suggest the weakest ones
-  // (avg z below a small threshold), capped at three.
-  const weak = ranked.filter((c) => c.a < -0.15).slice(-3).reverse();
-  const buildKeys = weak.map((c) => c.k);
-  let rec;
-  if (!buildKeys.length) {
-    rec = `<div class="mt-rec mt-rec-balanced">
-      <div class="mt-rec-h">Balanced build</div>
-      <p>No category is dragging your team down — you're competitive across the board. Punting isn't needed; stay flexible and stream for games played.</p>
-    </div>`;
-  } else {
-    const names = weak.map((c) => c.l).join(", ");
-    const same = buildKeys.length === state.punts.size &&
-      buildKeys.every((k) => state.punts.has(k));
-    rec = `<div class="mt-rec">
-      <div class="mt-rec-h">Suggested build · punt ${names}</div>
-      <p>Your roster is weakest in ${names}. Punting ${weak.length > 1 ? "these" : "it"} concentrates value where you actually compete.</p>
-      <button class="btn btn-primary mt-apply" ${same ? "disabled" : ""}>${same ? "✓ Build applied to board" : "Apply punt build to board →"}</button>
-    </div>`;
-  }
+  // Recommended punts: search candidate builds and rank by the roster's mean
+  // league-wide percentile under each (see optimizePunts). The top builds are
+  // the ones your specific players are most elite in — one click applies any.
+  const opt = optimizePunts(roster);
+  const fmtFit = (v) => Math.round(v * 100);
+  const buildLabel = (keys) => keys.length ? "Punt " + keys.map((k) => CAT_LABEL[k]).join(" + ") : "No punt";
+  // Show the no-punt baseline plus the best builds that actually beat it, deduped.
+  const top = opt.builds.slice(0, 5).filter((b, i, a) =>
+    b.keys.length === 0 || b.delta > 0.0005 || i === 0).slice(0, 3);
+  if (!top.some((b) => b.keys.length === 0)) top.push({ keys: [], fit: opt.base, delta: 0 });
+  const best = opt.builds[0];
+  const balanced = best.keys.length === 0;
+  const cards = top.map((b) => {
+    const applied = setEq(state.punts, b.keys);
+    const isBest = b === best;
+    return `<button class="mt-build${applied ? " applied" : ""}${isBest ? " best" : ""}" data-keys="${b.keys.join(",")}" type="button" title="Apply this build to the board">
+      <span class="mt-build-tag">${isBest ? "Best fit" : b.keys.length ? "Alt" : "No punt"}</span>
+      <span class="mt-build-label">${buildLabel(b.keys)}</span>
+      <span class="mt-build-fit"><b>${fmtFit(b.fit)}</b><small>fit</small></span>
+      <span class="mt-build-delta ${b.delta > 0.0005 ? "pos-good" : b.delta < -0.0005 ? "pos-bad" : "mt-build-flat"}">${b.keys.length === 0 ? "baseline" : (b.delta >= 0 ? "+" : "") + (b.delta * 100).toFixed(1)}</span>
+      ${applied ? `<span class="mt-build-on">● on board</span>` : ""}
+    </button>`;
+  }).join("");
+  const rec = `<div class="mt-rec mt-rec-opt">
+    <div class="mt-rec-h">Punt optimizer ${balanced ? "· balanced roster" : "· punt " + best.keys.map((k) => CAT_LABEL[k]).join(" + ")}</div>
+    <p>${balanced
+      ? "No punt build beats staying balanced — your roster is competitive across the board. Stay flexible and stream for games played."
+      : `Builds ranked by your roster's average league percentile (<b>fit</b>). Higher = your players are more elite in that build. Punting <b>${best.keys.map((k) => CAT_LABEL[k]).join(" + ")}</b> lifts your roster <b>+${(best.delta * 100).toFixed(1)}</b> pts vs no punt.`}</p>
+    <div class="mt-builds">${cards}</div>
+  </div>`;
 
   const puntNote = state.punts.size
     ? `<div class="mt-punt-note">Board currently punting <b>${[...state.punts].map((k) => k.toUpperCase()).join(", ")}</b>.</div>`
@@ -2440,7 +2504,11 @@ function renderMyTeam() {
     </div>
     ${weeklyProjectionPanel(roster)}`;
 
-  body.querySelector(".mt-apply")?.addEventListener("click", () => applyPuntBuild(buildKeys));
+  body.querySelectorAll(".mt-build[data-keys]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const keys = b.dataset.keys ? b.dataset.keys.split(",") : [];
+      applyPuntBuild(keys, false);
+    }));
   body.querySelectorAll(".mt-remove[data-star]").forEach((b) =>
     b.addEventListener("click", () => toggleStar(b.dataset.star)));
   body.querySelectorAll(".mt-pname[data-id]").forEach((el) =>
