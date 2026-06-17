@@ -961,6 +961,7 @@ select option, select optgroup { background-color:#11151f; color:var(--ink); }
 .mt-build-delta { font-family:"Archivo"; font-size:.82rem; font-weight:700; min-width:46px; text-align:right; }
 .mt-build-flat { color:var(--muted); }
 .mt-build-on { grid-column:1 / -1; font-size:.66rem; font-weight:700; color:var(--orange-2); letter-spacing:.3px; }
+.mt-build-wins { grid-column:1 / -1; font-size:.68rem; color:var(--muted); }
 .mt-punt-note { font-size:.76rem; color:var(--muted); margin-top:10px; }
 .mt-punt-note b { color:var(--orange-2); font-weight:800; }
 /* pickup targets */

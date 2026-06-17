@@ -2500,14 +2500,23 @@ function renderMyTeam() {
   if (!top.some((b) => b.keys.length === 0)) top.push({ keys: [], fit: opt.base, delta: 0 });
   const best = opt.builds[0];
   const balanced = best.keys.length === 0;
+  // The kept categories this build leans into (roster's strongest non-punted
+  // cats) — explains *why* a build fits, not just its score.
+  const leansInto = (keys) => {
+    const punted = new Set(keys);
+    return ranked.filter((c) => !punted.has(c.k) && c.a >= 0.15)
+      .sort((x, y) => y.a - x.a).slice(0, 3).map((c) => c.l);
+  };
   const cards = top.map((b) => {
     const applied = setEq(state.punts, b.keys);
     const isBest = b === best;
+    const wins = leansInto(b.keys);
     return `<button class="mt-build${applied ? " applied" : ""}${isBest ? " best" : ""}" data-keys="${b.keys.join(",")}" type="button" title="Apply this build to the board">
       <span class="mt-build-tag">${isBest ? "Best fit" : b.keys.length ? "Alt" : "No punt"}</span>
       <span class="mt-build-label">${buildLabel(b.keys)}</span>
       <span class="mt-build-fit"><b>${fmtFit(b.fit)}</b><small>fit</small></span>
       <span class="mt-build-delta ${b.delta > 0.0005 ? "pos-good" : b.delta < -0.0005 ? "pos-bad" : "mt-build-flat"}">${b.keys.length === 0 ? "baseline" : (b.delta >= 0 ? "+" : "") + (b.delta * 100).toFixed(1)}</span>
+      ${wins.length ? `<span class="mt-build-wins">Leans into ${wins.join(" · ")}</span>` : ""}
       ${applied ? `<span class="mt-build-on">● on board</span>` : ""}
     </button>`;
   }).join("");
