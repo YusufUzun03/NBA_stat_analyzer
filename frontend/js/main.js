@@ -397,7 +397,12 @@ function initControls() {
 
   // pool + min minutes (baseline-affecting -> refetch; disabled when hosted)
   bindRange("pool", "poolVal", (v) => { state.pool = v; load(); });
-  bindRange("minMin", "minVal", (v) => { state.minMin = v; load(); });
+  // MPG is a client-side filter on the snapshot (which now holds every player);
+  // only refetch when a live backend is actually computing the baseline.
+  bindRange("minMin", "minVal", (v) => {
+    state.minMin = v;
+    if (API && !usingSnapshot) load(); else { saveState(); render(); }
+  });
   if (!API) disablePoolControls();
 
   document.getElementById("reset").addEventListener("click", () => {
@@ -423,11 +428,10 @@ function initControls() {
 // Pool & min-minutes change the z-score baseline, which needs the live backend.
 // On the hosted snapshot they're fixed, so grey them out and explain why.
 function disablePoolControls() {
-  const why = "Needs the live backend — the hosted snapshot is fixed at pool 156 / 12 MPG.";
-  ["pool", "minMin"].forEach((id) => {
-    const tool = document.getElementById(id)?.closest(".tool");
-    if (tool) { tool.classList.add("disabled"); tool.title = why; }
-  });
+  // Only the pool needs the backend (it changes the z-score baseline); MPG is
+  // a live client-side filter on the snapshot, so leave it enabled.
+  const tool = document.getElementById("pool")?.closest(".tool");
+  if (tool) { tool.classList.add("disabled"); tool.title = "Needs the live backend — the hosted snapshot uses a 156-player baseline."; }
 }
 function bindRange(id, valId, onCommit) {
   const el = document.getElementById(id), out = document.getElementById(valId);
@@ -551,6 +555,7 @@ function computeBoard() {
 function applyFilters(board) {
   const q = norm(state.search);
   return board.filter((p) => {
+    if ((p.min ?? 0) < state.minMin) return false;   // client-side MPG floor (snapshot has all players)
     if (starredOnly && !watchlist.has(p.id)) return false;
     if (state.team !== "ALL" && p.team !== state.team) return false;
     if (state.pos !== "ALL" && !(p.pos || "").toUpperCase().includes(state.pos)) return false;
@@ -1716,7 +1721,7 @@ function renderLeaders() {
   if (!grid || !rawPlayers.length) return;
   grid.innerHTML = LEADERS_META.map((cat) => {
     const sorted = rawPlayers
-      .filter((p) => p.stats?.[cat.stat] != null)
+      .filter((p) => p.stats?.[cat.stat] != null && (p.min ?? 0) >= 20)  // avoid tiny-sample flukes
       .sort((a, b) => cat.low
         ? a.stats[cat.stat] - b.stats[cat.stat]
         : b.stats[cat.stat] - a.stats[cat.stat])

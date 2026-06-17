@@ -30,7 +30,10 @@ OUT = Path(__file__).parent.parent.parent / "frontend" / "data" / f"players-{SEA
 def main() -> None:
     print(f"Fetching per-game stats for {SEASON}…")
     players = get_player_stats(SEASON)
-    ranked = compute_values(players, pool=DEFAULT_POOL, punt=[], min_minutes=MIN_MINUTES)
+    # Include EVERY player who appeared (min_minutes=0); z-scores are still
+    # anchored to the top-`pool` baseline, so the rankings are unchanged — there
+    # are just more low-minute names available for search and the MPG filter.
+    ranked = compute_values(players, pool=DEFAULT_POOL, punt=[], min_minutes=0)
 
     # Never clobber a good snapshot with an empty one (e.g. preseason before any
     # games are played, or a transient scrape failure).
@@ -44,7 +47,7 @@ def main() -> None:
             "season": SEASON,
             "pool": DEFAULT_POOL,
             "punt": [],
-            "min_minutes": MIN_MINUTES,
+            "min_minutes": 0,
             "count": len(ranked),
             "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "source": "basketball-reference.com",
