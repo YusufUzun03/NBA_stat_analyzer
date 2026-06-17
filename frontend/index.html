@@ -265,7 +265,11 @@
   <!-- ===================== MY TEAM ===================== -->
   <section class="section" id="myteam">
     <h2 class="section-title reveal">My team</h2>
-    <p class="section-lead reveal">Star players (☆) anywhere on the page to build your roster. BoxScore totals your category z-scores, shows where you're strong or thin, and recommends the punt build that fits your team — one click applies it to the board.</p>
+    <p class="section-lead reveal">Star players (☆) anywhere on the page to build your roster — or <b>import</b> it in one shot. BoxScore totals your category z-scores, shows where you're strong or thin, and recommends the punt build that fits your team — one click applies it to the board.</p>
+    <div class="mt-import reveal" id="mt-import">
+      <button class="btn btn-primary" id="importRosterBtn" type="button">⬇ Import roster</button>
+      <span class="mt-import-hint">Paste a name list from any platform, or pull a Sleeper league automatically.</span>
+    </div>
     <div class="myteam-wrap reveal" id="myteam-body"></div>
   </section>
 
@@ -400,6 +404,14 @@
     <div class="modal-box" role="dialog" aria-modal="true">
       <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
       <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <!-- ===================== IMPORT ROSTER MODAL ===================== -->
+  <div id="import-overlay" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box import-box" role="dialog" aria-modal="true" aria-label="Import roster">
+      <button class="modal-close" id="import-close" aria-label="Close">&times;</button>
+      <div id="import-content"></div>
     </div>
   </div>
 

@@ -726,6 +726,8 @@ function initTools() {
   initStreamers();
   initMatchup();
   initTiers();
+  initImportModal();
+  document.getElementById("importRosterBtn")?.addEventListener("click", openImport);
   // Phase 3: event delegation for player modal + compare buttons
   document.getElementById("rankTable").addEventListener("click", (e) => {
     const starBtn = e.target.closest(".star-btn[data-star]");
@@ -2443,4 +2445,278 @@ function renderMyTeam() {
     b.addEventListener("click", () => toggleStar(b.dataset.star)));
   body.querySelectorAll(".mt-pname[data-id]").forEach((el) =>
     el.addEventListener("click", () => { const p = getPlayer(el.dataset.id); if (p) openModal(p); }));
+}
+
+/* ========================= ROSTER IMPORT (paste / Sleeper) ========================= */
+// Fills My Team from a pasted name list or a Sleeper league, mapping each player
+// to a BoxScore (basketball-reference) id by normalized name. Fully client-side:
+// Sleeper's API is open + CORS-friendly, so this needs no server and no login,
+// keeping the static-snapshot architecture intact. Matches feed the watchlist,
+// which already drives the whole My Team analyzer.
+
+// --- name matching ---------------------------------------------------------
+// Normalize for comparison: strip diacritics (via norm), punctuation, hyphens
+// and generational suffixes so "Luka Dončić" ⇄ "Luka Doncic" and
+// "Jaren Jackson Jr." ⇄ "Jaren Jackson" both line up.
+const cleanName = (s) => norm(s)
+  .replace(/[.'’`]/g, "")
+  .replace(/-/g, " ")
+  .replace(/\b(jr|sr|ii|iii|iv|v)\b/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+
+let _nameIndex = null, _lastIndex = null;
+const _push = (map, key, val) => { const a = map.get(key); a ? a.push(val) : map.set(key, [val]); };
+function buildNameIndex() {
+  _nameIndex = new Map();   // full cleaned name -> [player,...]
+  _lastIndex = new Map();   // last-name token  -> [player,...]
+  for (const p of rawPlayers) {
+    const c = cleanName(p.name);
+    if (!c) continue;
+    _push(_nameIndex, c, p);
+    const toks = c.split(" ");
+    _push(_lastIndex, toks[toks.length - 1], p);
+  }
+}
+// When several players share a cleaned name, prefer the fantasy-relevant one
+// (highest total z) — that's almost always the active star, not a journeyman.
+const _bestOf = (arr) => arr.slice().sort((a, b) => fullZTotal(b) - fullZTotal(a))[0];
+
+function matchName(query) {
+  if (!rawPlayers.length) return null;
+  if (!_nameIndex) buildNameIndex();
+  const c = cleanName(query);
+  if (!c) return null;
+  if (_nameIndex.has(c)) return _bestOf(_nameIndex.get(c));
+  const toks = c.split(" ");
+  if (toks.length >= 2) {
+    const first = toks[0], last = toks[toks.length - 1];
+    const byLast = _lastIndex.get(last);
+    if (byLast?.length) {
+      const fi = byLast.filter((p) => cleanName(p.name).split(" ")[0][0] === first[0]);
+      if (fi.length) return _bestOf(fi);
+      if (byLast.length === 1) return byLast[0];   // unique surname, take it
+    }
+  }
+  return null;
+}
+
+// Split pasted text into candidate names: one per line or comma, parentheticals
+// (team/pos tags like "(DEN - C)") stripped.
+function parseNames(text) {
+  return text.split(/[\n,\t]/)
+    .map((s) => s.replace(/\(.*?\)/g, "").trim())
+    .filter(Boolean);
+}
+
+// Map a list of raw names to players, de-duping and tracking misses.
+function resolveRoster(names) {
+  buildNameIndex();
+  const seen = new Set(), matched = [], unmatched = [];
+  for (const nm of names) {
+    const p = matchName(nm);
+    if (p) { if (!seen.has(p.id)) { seen.add(p.id); matched.push({ input: nm, player: p }); } }
+    else unmatched.push(nm);
+  }
+  return { matched, unmatched };
+}
+
+// --- Sleeper API (open, read-only, CORS-friendly) --------------------------
+const SLEEPER = "https://api.sleeper.app/v1";
+let _sleeperPlayers = null;   // session cache for the (~MB) NBA player map
+async function sleeperPlayers() {
+  if (_sleeperPlayers) return _sleeperPlayers;
+  const r = await fetch(`${SLEEPER}/players/nba`);
+  if (!r.ok) throw new Error("Couldn't load Sleeper's player list.");
+  _sleeperPlayers = await r.json();
+  return _sleeperPlayers;
+}
+async function sleeperLeague(id) {
+  const [lg, rosters, users] = await Promise.all([
+    fetch(`${SLEEPER}/league/${id}`).then((r) => r.ok ? r.json() : null),
+    fetch(`${SLEEPER}/league/${id}/rosters`).then((r) => r.ok ? r.json() : []),
+    fetch(`${SLEEPER}/league/${id}/users`).then((r) => r.ok ? r.json() : []),
+  ]);
+  if (!lg) throw new Error("League not found — double-check the league ID.");
+  if (lg.sport && lg.sport !== "nba") throw new Error(`That's a ${lg.sport.toUpperCase()} league, not NBA.`);
+  return { lg, rosters: rosters || [], users: users || [] };
+}
+async function sleeperRosterNames(playerIds) {
+  const pm = await sleeperPlayers();
+  return (playerIds || []).map((pid) => {
+    const sp = pm[pid];
+    if (!sp) return null;
+    return sp.full_name || `${sp.first_name || ""} ${sp.last_name || ""}`.trim();
+  }).filter(Boolean);
+}
+
+// --- import modal UI -------------------------------------------------------
+let _importLastFocus = null;
+function initImportModal() {
+  const overlay = document.getElementById("import-overlay");
+  if (!overlay) return;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeImport(); });
+  document.getElementById("import-close")?.addEventListener("click", closeImport);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && overlay.classList.contains("open")) closeImport();
+  });
+}
+function openImport() {
+  _nameIndex = null;   // force a fresh index against the current season's players
+  const overlay = document.getElementById("import-overlay");
+  const content = document.getElementById("import-content");
+  if (!overlay || !content) return;
+  if (!rawPlayers.length) { showToast("Players still loading — try again in a moment.", true); return; }
+  content.innerHTML = importHTML();
+  content.querySelector(".imp-tabs").addEventListener("click", (e) => {
+    const t = e.target.closest(".imp-tab[data-t]"); if (t) showImportTab(content, t.dataset.t);
+  });
+  showImportTab(content, "paste");
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  _importLastFocus = document.activeElement;
+  content.querySelector(".imp-tab")?.focus();
+}
+function closeImport() {
+  const overlay = document.getElementById("import-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  if (_importLastFocus?.focus) _importLastFocus.focus();
+}
+
+function importHTML() {
+  return `
+    <div class="imp-h">Import roster</div>
+    <div class="imp-tabs">
+      <button class="imp-tab active" data-t="paste" type="button">Paste names</button>
+      <button class="imp-tab" data-t="sleeper" type="button">Sleeper league</button>
+    </div>
+    <div id="imp-body"></div>`;
+}
+
+function showImportTab(root, which) {
+  root.querySelectorAll(".imp-tab").forEach((t) => t.classList.toggle("active", t.dataset.t === which));
+  const body = root.querySelector("#imp-body");
+  body.innerHTML = which === "sleeper" ? sleeperPanelHTML() : pastePanelHTML();
+  if (which === "sleeper") wireSleeperPanel(body);
+  else wirePastePanel(body);
+}
+
+function pastePanelHTML() {
+  return `
+    <p class="imp-lead">Paste your roster — one player per line (or comma-separated). Copy it straight from Yahoo, ESPN, Fantrax, anywhere.</p>
+    <textarea id="imp-paste" class="imp-ta" rows="8" spellcheck="false"
+      placeholder="Nikola Jokic&#10;Shai Gilgeous-Alexander&#10;Anthony Edwards&#10;Jaren Jackson Jr."></textarea>
+    <div class="imp-actions">
+      <button class="btn btn-primary" id="imp-match" type="button">Match players →</button>
+    </div>
+    <div id="imp-result"></div>`;
+}
+function wirePastePanel(body) {
+  body.querySelector("#imp-match")?.addEventListener("click", () => {
+    const names = parseNames(body.querySelector("#imp-paste")?.value || "");
+    if (!names.length) { showToast("Paste a name or two first.", true); return; }
+    renderImportResult(body.querySelector("#imp-result"), resolveRoster(names));
+  });
+}
+
+function sleeperPanelHTML() {
+  return `
+    <p class="imp-lead">Enter your Sleeper league ID — it's in the league URL: <code>sleeper.com/leagues/<b>ID</b>/…</code>. We'll list the teams so you can pick yours.</p>
+    <div class="imp-row">
+      <input id="imp-league" class="imp-input" inputmode="numeric" autocomplete="off"
+        placeholder="e.g. 1234567890123456789" />
+      <button class="btn btn-primary" id="imp-load" type="button">Load league</button>
+    </div>
+    <div id="imp-teams"></div>
+    <div id="imp-result"></div>`;
+}
+function wireSleeperPanel(body) {
+  const input = body.querySelector("#imp-league");
+  const loadBtn = body.querySelector("#imp-load");
+  const teamsEl = body.querySelector("#imp-teams");
+  const resultEl = body.querySelector("#imp-result");
+  const run = async () => {
+    const id = (input.value || "").trim().replace(/\D/g, "");
+    if (!id) { showToast("Enter your Sleeper league ID.", true); return; }
+    setBusy(loadBtn, true, "Loading…");
+    teamsEl.innerHTML = ""; resultEl.innerHTML = "";
+    try {
+      const { lg, rosters, users } = await sleeperLeague(id);
+      const uById = Object.fromEntries(users.map((u) => [u.user_id, u]));
+      const teams = rosters
+        .filter((r) => (r.players || []).length)
+        .map((r) => {
+          const u = uById[r.owner_id];
+          const name = u?.metadata?.team_name || u?.display_name || `Team ${r.roster_id}`;
+          return { name, players: r.players || [] };
+        });
+      if (!teams.length) { teamsEl.innerHTML = `<div class="imp-miss">No rostered teams found in that league.</div>`; return; }
+      teamsEl.innerHTML = `
+        <div class="imp-lead imp-lg-name">${esc(lg.name || "League")} · pick your team:</div>
+        <div class="imp-teamgrid">${teams.map((t, i) =>
+          `<button class="imp-team" data-i="${i}" type="button">${esc(t.name)} <span>${t.players.length}</span></button>`).join("")}</div>`;
+      teamsEl.querySelectorAll(".imp-team").forEach((b) => b.addEventListener("click", async () => {
+        teamsEl.querySelectorAll(".imp-team").forEach((x) => x.classList.toggle("active", x === b));
+        resultEl.innerHTML = `<div class="imp-loading">Resolving roster…</div>`;
+        try {
+          const names = await sleeperRosterNames(teams[+b.dataset.i].players);
+          renderImportResult(resultEl, resolveRoster(names));
+        } catch (err) { resultEl.innerHTML = `<div class="imp-miss">${esc(err.message)}</div>`; }
+      }));
+    } catch (err) {
+      teamsEl.innerHTML = `<div class="imp-miss">${esc(err.message)}</div>`;
+    } finally { setBusy(loadBtn, false, "Load league"); }
+  };
+  loadBtn?.addEventListener("click", run);
+  input?.addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+}
+
+function setBusy(btn, busy, label) {
+  if (!btn) return;
+  btn.disabled = busy;
+  if (label != null) btn.textContent = label;
+}
+
+function renderImportResult(el, { matched, unmatched }) {
+  if (!el) return;
+  if (!matched.length && !unmatched.length) { el.innerHTML = ""; return; }
+  const matchChips = matched.map((m) =>
+    `<span class="imp-chip imp-ok" title="${esc(m.input)} → ${esc(m.player.name)}">${esc(m.player.name)}<small>${esc(m.player.team || "")}</small></span>`).join("");
+  const missChips = unmatched.map((n) => `<span class="imp-chip imp-bad">${esc(n)}</span>`).join("");
+  const has = matched.length;
+  el.innerHTML = `
+    <div class="imp-result-h">Matched <b>${matched.length}</b>${unmatched.length ? ` · ${unmatched.length} not found` : ""}</div>
+    <div class="imp-chips">${matchChips}</div>
+    ${unmatched.length ? `<div class="imp-miss-h">Couldn't match — check spelling or add these manually:</div><div class="imp-chips">${missChips}</div>` : ""}
+    <div class="imp-actions">
+      <label class="imp-replace"><input type="checkbox" id="imp-replace" ${has ? "" : "disabled"}> Replace my current team instead of adding</label>
+      <button class="btn btn-primary" id="imp-commit" type="button" ${has ? "" : "disabled"}>
+        Add ${matched.length} player${matched.length === 1 ? "" : "s"} to my team
+      </button>
+    </div>`;
+  el.querySelector("#imp-replace")?.addEventListener("change", (e) => {
+    const btn = el.querySelector("#imp-commit");
+    if (btn) btn.textContent = `${e.target.checked ? "Replace team with" : "Add"} ${matched.length} player${matched.length === 1 ? "" : "s"}${e.target.checked ? "" : " to my team"}`;
+  });
+  el.querySelector("#imp-commit")?.addEventListener("click", () =>
+    commitImport(matched, { replace: el.querySelector("#imp-replace")?.checked }));
+}
+
+function commitImport(matched, { replace = false } = {}) {
+  if (!matched.length) return;
+  if (replace) watchlist.clear();
+  matched.forEach((m) => watchlist.add(m.player.id));
+  saveWatchlist();
+  render();
+  renderPlayerGrid(document.getElementById("player-search")?.value.trim() || "");
+  renderMyTeam();
+  renderStreamers();
+  syncStarChip();
+  closeImport();
+  showToast(`${replace ? "Team set to" : "Added"} ${matched.length} player${matched.length === 1 ? "" : "s"}`);
+  document.getElementById("myteam")?.scrollIntoView({ behavior: "smooth" });
 }
