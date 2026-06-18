@@ -12,6 +12,10 @@ const REPO_URL = "https://github.com/YusufUzun03/NBA_stat_analyzer";
 // data). Falls back to the local API for dev. ⚠️ After deploying to Render,
 // replace the onrender.com URL below with your actual service URL.
 const YAHOO_PROXY = (API || "https://boxscore-api.onrender.com").replace(/\/$/, "");
+// Yahoo import is off until the proxy is deployed (see YAHOO_SETUP.md). Flip to
+// true after deploying — the tab also shows automatically in local ?api dev.
+const YAHOO_ENABLED = false;
+const yahooAvailable = () => YAHOO_ENABLED || !!new URLSearchParams(location.search).get("api");
 
 const CATS = [
   { k: "pts", l: "PTS" }, { k: "reb", l: "REB" }, { k: "ast", l: "AST" },
@@ -2759,7 +2763,7 @@ function importHTML() {
     <div class="imp-tabs">
       <button class="imp-tab active" data-t="paste" type="button">Paste names</button>
       <button class="imp-tab" data-t="sleeper" type="button">Sleeper league</button>
-      <button class="imp-tab" data-t="yahoo" type="button">Yahoo league</button>
+      ${yahooAvailable() ? `<button class="imp-tab" data-t="yahoo" type="button">Yahoo league</button>` : ""}
     </div>
     <div id="imp-body"></div>`;
 }
