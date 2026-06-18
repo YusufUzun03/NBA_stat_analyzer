@@ -23,7 +23,7 @@ no API key; it runs entirely from static data snapshots that refresh nightly.
 | Trade analyzer | Compare both sides category-by-category with a letter grade. |
 | Compare tray | Pin up to 4 players and compare them side-by-side on a shared radar + stat table. |
 | My Team | Star players (or **import** a roster) → category strengths, a **punt optimizer**, **pickup targets**, weekly projection. |
-| Roster import | Build My Team in one shot: paste a name list from any platform, pull a **Sleeper** league by ID (client-side, no login), or connect **Yahoo** via the local backend (OAuth proxy — see [YAHOO_SETUP.md](./YAHOO_SETUP.md)). Names are fuzzy-matched to players (diacritics/suffixes handled). |
+| Roster import | Build My Team in one shot: paste a name list from any platform, pull a **Sleeper** league by ID (client-side, no login), or **Connect Yahoo** in one click (OAuth via a stateless proxy that stores no data — owner setup in [YAHOO_SETUP.md](./YAHOO_SETUP.md)). Names are fuzzy-matched to players (diacritics/suffixes handled). |
 | Punt optimizer | Searches punt builds (up to 3 cats) and ranks them by your roster's average league-wide percentile under each — i.e. the build your *specific* players are most elite in, not just your weakest categories. Each build shows the cats it leans into; one click applies it to the board. |
 | Pickup targets | Surfaces the best available players (not on your roster) for your weakest **kept** categories — answering "who fixes what I'm missing", punt-build aware. |
 | Best punt fits (per player) | Each player profile shows the single-cat punts that raise *that* player's league rank the most (e.g. Giannis: Punt FT% #69→#8) — tap to apply. |

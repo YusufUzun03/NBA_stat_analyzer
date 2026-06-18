@@ -1,78 +1,84 @@
-# Connecting Yahoo Fantasy to BoxScore
+# Yahoo Fantasy integration (owner setup)
 
 Yahoo (unlike Sleeper) requires an OAuth login and a **client secret**, and its
-API sends no CORS headers — so it can't be called from the browser. BoxScore's
-**local backend** acts as the proxy: it holds the secret, does the OAuth dance,
-and hands the frontend a clean roster. Everything stays on your machine.
+API serves no CORS headers — so it can't be called from the browser. BoxScore's
+backend acts as a **stateless OAuth proxy**: it holds the secret and forwards
+calls, but stores **no user data** — each visitor's tokens live in their own
+browser. You set this up **once**; after that, users just click **Connect
+Yahoo** and pick their team. Nothing to install on their end.
 
-This is a **one-time, ~5-minute** setup.
+```
+Browser ──login──▶ Render proxy ──▶ Yahoo ──code──▶ Render proxy ──tokens(#)──▶ Browser
+Browser ──Bearer token──▶ Render proxy ──▶ Yahoo Fantasy API ──roster──▶ Browser
+```
 
-## 1. Register a Yahoo app
+## 1. Deploy the backend (Render)
 
-1. Go to <https://developer.yahoo.com/apps/create/>.
-2. Fill in:
-   - **Application Name**: anything (e.g. `BoxScore`).
-   - **Application Type**: **Confidential Client**.
-   - **Redirect URI(s)**: `http://localhost:8000/api/yahoo/callback`
-     (must match exactly; see the note on `https` below if Yahoo rejects it).
-   - **API Permissions**: tick **Fantasy Sports** → **Read**.
-3. Click **Create App**.
-4. Copy the **Client ID (Consumer Key)** and **Client Secret (Consumer Secret)**.
+1. Push this repo to GitHub (already done).
+2. On <https://render.com> → **New → Blueprint** → pick this repo. It reads
+   [`render.yaml`](./render.yaml) and creates a free web service
+   (`boxscore-api`). Note its URL, e.g. `https://boxscore-api.onrender.com`.
+   - (Or **New → Web Service** manually: Root Dir `backend`, Build
+     `pip install -r requirements.txt`, Start
+     `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.)
 
-## 2. Give the backend your credentials
+## 2. Register one Yahoo app
 
-Set them as environment variables in the **same terminal** you'll run the
-backend from.
+1. <https://developer.yahoo.com/apps/create/>
+2. **Application Type**: Confidential Client.
+3. **Redirect URI**: `https://<your-service>.onrender.com/api/yahoo/callback`
+   (must match exactly — Yahoo requires `https`, which Render provides).
+4. **API Permissions**: Fantasy Sports → **Read**.
+5. Create, then copy **Client ID** and **Client Secret**.
 
-**PowerShell (Windows):**
+## 3. Configure the env vars on Render
+
+In the Render service → **Environment**:
+
+| Key | Value |
+|---|---|
+| `YAHOO_CLIENT_ID` | your client id |
+| `YAHOO_CLIENT_SECRET` | your client secret |
+| `YAHOO_REDIRECT_URI` | `https://<your-service>.onrender.com/api/yahoo/callback` |
+| `YAHOO_ALLOWED_RETURNS` | `https://yusufuzun03.github.io,http://localhost,http://127.0.0.1` |
+
+Save → Render redeploys.
+
+## 4. Point the frontend at the proxy
+
+In `frontend/js/main.js`, set `YAHOO_PROXY` to your Render base URL:
+
+```js
+const YAHOO_PROXY = (API || "https://boxscore-api.onrender.com").replace(/\/$/, "");
+//                          ^ replace with your actual service URL
+```
+
+Commit & push → GitHub Pages redeploys. Done — open the live site, **My Team →
+Import roster → Yahoo league → Connect Yahoo**.
+
+## Local development
+
+Run the backend locally and point the frontend at it with `?api`:
+
 ```powershell
-$env:YAHOO_CLIENT_ID    = "<your client id>"
-$env:YAHOO_CLIENT_SECRET= "<your client secret>"
-# optional — only if you changed the redirect URI on the Yahoo app:
-# $env:YAHOO_REDIRECT_URI = "http://localhost:8000/api/yahoo/callback"
+$env:YAHOO_CLIENT_ID="…"; $env:YAHOO_CLIENT_SECRET="…"
+$env:YAHOO_REDIRECT_URI="http://localhost:8000/api/yahoo/callback"
+cd backend; uvicorn app.main:app --reload
 ```
 
-**bash/zsh (macOS/Linux):**
-```bash
-export YAHOO_CLIENT_ID="<your client id>"
-export YAHOO_CLIENT_SECRET="<your client secret>"
-```
+Serve the frontend over http (not `file://`, so localStorage + the callback
+work), e.g. `python -m http.server 5500` inside `frontend/`, then open
+`http://localhost:5500/?api=http://localhost:8000`. Register
+`http://localhost:8000/api/yahoo/callback` as a second redirect URI on the
+Yahoo app for local testing.
 
-## 3. Run the backend and open BoxScore
+## Notes
 
-```bash
-cd backend
-uvicorn app.main:app --reload
-```
-
-Open the frontend pointed at the local API (so the redirect host matches):
-
-```
-…/frontend/index.html?api=http://localhost:8000
-```
-
-## 4. Import your roster
-
-1. **My Team → Import roster → Yahoo league**.
-2. **Connect Yahoo →** opens Yahoo's login in a popup; approve access.
-3. The popup closes itself; BoxScore loads your NBA team(s).
-4. Pick your team → review the matched players → **Add to my team**.
-
-Your token is cached in `cache/yahoo_token.json` so you only log in once
-(it auto-refreshes). **Disconnect** in the Yahoo tab deletes it.
-
-## Notes & troubleshooting
-
-- **"Couldn't reach the BoxScore backend"** — the backend isn't running, or you
-  didn't open the site with `?api=http://localhost:8000`.
-- **"Yahoo isn't set up"** — the env vars weren't set in the terminal that
-  launched `uvicorn`. Set them, then restart it.
-- **Yahoo rejects an `http` redirect URI** — some accounts require `https`. Set
-  `YAHOO_REDIRECT_URI` to an `https://localhost:8000/...` URL **and** run uvicorn
-  with TLS (`--ssl-keyfile`/`--ssl-certfile`), or use a tunnel (e.g. ngrok) and
-  register that https URL instead.
-- **Read-only**: BoxScore requests only the `fspt-r` (read) scope — it can't
-  change your Yahoo roster.
-- **Hosting it for the live site**: this works locally as-is. To use Yahoo on
-  the public GitHub Pages site, deploy this backend (Render/Railway/Fly) and
-  register that deployed callback URL on the Yahoo app instead.
+- **Read-only**: only the `fspt-r` scope is requested — BoxScore can't modify a
+  Yahoo roster.
+- **Stateless / no DB**: the server never persists tokens; they sit in the
+  user's `localStorage` and refresh automatically. "Disconnect" clears them.
+- **Open-redirect safe**: the callback only hands tokens back to origins in
+  `YAHOO_ALLOWED_RETURNS`; state is HMAC-signed so it can't be forged.
+- **Free tier cold start**: Render's free service sleeps when idle, so the first
+  Yahoo action after a while may take ~30s while it wakes.

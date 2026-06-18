@@ -1,18 +1,29 @@
-"""Yahoo Fantasy integration — OAuth 2.0 + roster fetch.
+"""Yahoo Fantasy integration — stateless, multi-user OAuth proxy.
 
 Yahoo's Fantasy API can't be reached from the browser (OAuth needs a client
-secret, and Yahoo serves no CORS headers), so this backend acts as the proxy:
-it holds the secret, runs the OAuth dance, and exposes a clean roster endpoint
-the static frontend can call.
+secret, and Yahoo serves no CORS headers), so this backend is the proxy. It is
+deliberately **stateless**: it never stores user tokens. The owner registers one
+Yahoo app + deploys this once; every visitor's tokens live in *their own
+browser* and are passed in per request. That means no database, no sessions —
+it scales to any number of users and the server holds no personal data.
 
-Scope is single-user / local by design: the token is cached in one file under
-``cache/``. That's intentional — the backend is meant to run on the user's own
-machine (``uvicorn``), not as a public multi-tenant service. Pure helpers
-(URL building + JSON parsing) are split out so they're unit-testable without
-live credentials.
+Flow:
+  1. frontend opens  /api/yahoo/login?return=<frontend page>
+  2. we redirect to Yahoo with a *signed* state that embeds the return URL
+     (HMAC over the client secret → CSRF-proof, no server-side state needed)
+  3. Yahoo → /api/yahoo/callback?code&state ; we verify state, exchange the
+     code, and redirect to the return URL with tokens in the URL fragment
+  4. the frontend stores those tokens (localStorage) and sends the access token
+     to /api/yahoo/teams ; /api/yahoo/refresh renews it when it expires
+
+Pure helpers (URL building, state signing, JSON parsing) are unit-tested
+without live credentials.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
 import time
 from typing import Any
@@ -21,7 +32,7 @@ from urllib.parse import urlencode
 import requests
 
 from .config import (
-    CACHE_DIR,
+    YAHOO_ALLOWED_RETURNS,
     YAHOO_CLIENT_ID,
     YAHOO_CLIENT_SECRET,
     YAHOO_REDIRECT_URI,
@@ -30,28 +41,60 @@ from .config import (
 AUTH_URL = "https://api.login.yahoo.com/oauth2/request_auth"
 TOKEN_URL = "https://api.login.yahoo.com/oauth2/get_token"
 API_BASE = "https://fantasysports.yahooapis.com/fantasy/v2"
-SCOPE = "fspt-r"  # Fantasy Sports, read-only
-
-TOKEN_FILE = CACHE_DIR / "yahoo_token.json"
-STATE_FILE = CACHE_DIR / "yahoo_state.json"
+SCOPE = "fspt-r"          # Fantasy Sports, read-only
+STATE_TTL = 600           # signed state valid for 10 minutes
 
 
 class YahooError(RuntimeError):
-    """Raised for any recoverable Yahoo flow problem (surface to the user)."""
+    """Recoverable Yahoo flow problem (surface message to the user)."""
 
 
 def is_configured() -> bool:
-    """True when client id/secret are present so the flow can even start."""
     return bool(YAHOO_CLIENT_ID and YAHOO_CLIENT_SECRET)
 
 
-def is_connected() -> bool:
-    return TOKEN_FILE.exists()
+# --- return-URL allowlist (prevents open-redirect / token theft) -----------
+def is_allowed_return(url: str) -> bool:
+    """A return URL must start with one of the configured allowed origins."""
+    return bool(url) and any(url.startswith(p) for p in YAHOO_ALLOWED_RETURNS)
 
 
-# --- OAuth flow ------------------------------------------------------------
+# --- signed state (stateless CSRF) -----------------------------------------
+def _b64e(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+
+def _b64d(s: str) -> bytes:
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def _sig(raw: str) -> str:
+    return hmac.new(YAHOO_CLIENT_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def make_state(return_url: str, now: float | None = None) -> str:
+    payload = {"r": return_url, "exp": (now or time.time()) + STATE_TTL}
+    raw = _b64e(json.dumps(payload).encode())
+    return f"{raw}.{_sig(raw)}"
+
+
+def read_state(state: str, now: float | None = None) -> dict | None:
+    """Return the state payload if the signature is valid and unexpired."""
+    if not state or "." not in state:
+        return None
+    raw, sig = state.rsplit(".", 1)
+    if not hmac.compare_digest(sig, _sig(raw)):
+        return None
+    try:
+        payload = json.loads(_b64d(raw))
+    except (ValueError, json.JSONDecodeError):
+        return None
+    if float(payload.get("exp", 0)) < (now or time.time()):
+        return None
+    return payload
+
+
 def authorization_url(state: str) -> str:
-    """Yahoo consent URL to redirect the user to."""
     params = {
         "client_id": YAHOO_CLIENT_ID,
         "redirect_uri": YAHOO_REDIRECT_URI,
@@ -62,136 +105,78 @@ def authorization_url(state: str) -> str:
     return f"{AUTH_URL}?{urlencode(params)}"
 
 
-def save_state(state: str) -> None:
-    STATE_FILE.write_text(json.dumps({"state": state}), encoding="utf-8")
-
-
-def check_state(state: str) -> bool:
-    if not STATE_FILE.exists():
-        return False
-    try:
-        saved = json.loads(STATE_FILE.read_text(encoding="utf-8")).get("state")
-    except (ValueError, OSError):
-        return False
-    return bool(state) and state == saved
-
-
-def _store_token(data: dict) -> None:
-    # Stamp an absolute expiry so refresh decisions don't depend on call timing.
-    data = dict(data)
-    data["expires_at"] = time.time() + float(data.get("expires_in", 3600)) - 60
-    TOKEN_FILE.write_text(json.dumps(data), encoding="utf-8")
-
-
-def _load_token() -> dict | None:
-    if not TOKEN_FILE.exists():
-        return None
-    try:
-        return json.loads(TOKEN_FILE.read_text(encoding="utf-8"))
-    except (ValueError, OSError):
-        return None
-
-
-def exchange_code(code: str) -> None:
-    """Trade an authorization code for access + refresh tokens, then cache them."""
+# --- token exchange / refresh (return tokens; never stored server-side) -----
+def exchange_code(code: str) -> dict:
     resp = requests.post(
         TOKEN_URL,
-        data={
-            "grant_type": "authorization_code",
-            "redirect_uri": YAHOO_REDIRECT_URI,
-            "code": code,
-        },
+        data={"grant_type": "authorization_code", "redirect_uri": YAHOO_REDIRECT_URI, "code": code},
         auth=(YAHOO_CLIENT_ID, YAHOO_CLIENT_SECRET),
         timeout=20,
     )
     if not resp.ok:
-        raise YahooError(f"Token exchange failed ({resp.status_code}): {resp.text[:200]}")
-    _store_token(resp.json())
+        raise YahooError(f"Token exchange failed ({resp.status_code}).")
+    return _shape_token(resp.json())
 
 
-def _refresh(refresh_token: str) -> dict:
+def refresh_token(refresh: str) -> dict:
     resp = requests.post(
         TOKEN_URL,
-        data={
-            "grant_type": "refresh_token",
-            "redirect_uri": YAHOO_REDIRECT_URI,
-            "refresh_token": refresh_token,
-        },
+        data={"grant_type": "refresh_token", "redirect_uri": YAHOO_REDIRECT_URI, "refresh_token": refresh},
         auth=(YAHOO_CLIENT_ID, YAHOO_CLIENT_SECRET),
         timeout=20,
     )
     if not resp.ok:
         raise YahooError("Yahoo session expired — please reconnect.")
     data = resp.json()
-    # Yahoo may omit the refresh_token on refresh; keep the old one.
-    data.setdefault("refresh_token", refresh_token)
-    _store_token(data)
-    return data
+    data.setdefault("refresh_token", refresh)  # Yahoo may omit it on refresh
+    return _shape_token(data)
 
 
-def _valid_access_token() -> str:
-    tok = _load_token()
-    if not tok:
-        raise YahooError("Not connected to Yahoo. Connect first.")
-    if time.time() >= tok.get("expires_at", 0):
-        tok = _refresh(tok.get("refresh_token", ""))
-    return tok["access_token"]
+def _shape_token(data: dict) -> dict:
+    """Normalize to just what the browser needs."""
+    return {
+        "access_token": data.get("access_token", ""),
+        "refresh_token": data.get("refresh_token", ""),
+        "expires_in": int(data.get("expires_in", 3600)),
+    }
 
 
-def disconnect() -> None:
-    for f in (TOKEN_FILE, STATE_FILE):
-        try:
-            f.unlink()
-        except OSError:
-            pass
-
-
-# --- Fantasy API -----------------------------------------------------------
-def _api_get(path: str) -> dict:
-    token = _valid_access_token()
+# --- Fantasy API (caller supplies the user's access token) ------------------
+def _api_get(path: str, access_token: str) -> dict:
     resp = requests.get(
         f"{API_BASE}{path}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {access_token}"},
         params={"format": "json"},
         timeout=20,
     )
     if resp.status_code == 401:
-        raise YahooError("Yahoo session expired — please reconnect.")
+        raise YahooError("expired")
     if not resp.ok:
         raise YahooError(f"Yahoo API error ({resp.status_code}).")
     return resp.json()
 
 
-def fetch_user_teams() -> list[dict]:
-    """The logged-in user's NBA teams, each with its roster of player names.
-
-    Returns ``[{"team_key", "name", "league", "players": [name, ...]}]`` —
-    the frontend matches those names to BoxScore players.
-    """
-    teams_payload = _api_get("/users;use_login=1/games;game_keys=nba/teams")
+def fetch_user_teams(access_token: str) -> list[dict]:
+    """The logged-in user's NBA teams, each with its roster of player names."""
+    teams_payload = _api_get("/users;use_login=1/games;game_keys=nba/teams", access_token)
     teams = extract_teams(teams_payload)
     out = []
     for t in teams:
-        roster = _api_get(f"/team/{t['team_key']}/roster/players")
+        roster = _api_get(f"/team/{t['team_key']}/roster/players", access_token)
         out.append({
             "team_key": t["team_key"],
             "name": t.get("name") or t["team_key"],
-            "league": t.get("league", ""),
             "players": extract_player_names(roster),
         })
     return out
 
 
 # --- JSON parsing (pure; unit-tested) --------------------------------------
-# Yahoo's JSON is deeply nested with numeric string keys and "count" markers.
-# Rather than index brittle paths, walk the tree and pull what we recognize.
-
 def extract_player_names(payload: Any) -> list[str]:
-    """Every player's full name in a payload, de-duped, order-preserved.
+    """Every player's full name, de-duped, order-preserved.
 
-    A player carries ``{"name": {"full": "..."}}``; team names are plain
-    strings, so keying on ``name`` being a dict with ``full`` selects players
-    only.
+    Players carry ``{"name": {"full": ...}}``; team names are plain strings, so
+    keying on ``name`` being a dict with ``full`` selects players only.
     """
     names: list[str] = []
 
@@ -217,11 +202,10 @@ def extract_player_names(payload: Any) -> list[str]:
 
 
 def extract_teams(payload: Any) -> list[dict]:
-    """``[{"team_key", "name", "league"}]`` for every team in a payload.
+    """``[{"team_key", "name"}]`` for every team in a payload.
 
-    A team's attribute list contains both ``{"team_key": ...}`` and
-    ``{"name": "<string>"}`` as siblings; we pair them per list. League name
-    (a ``{"name": ...}`` higher up) is best-effort and may be blank.
+    A team's attribute list holds ``{"team_key": ...}`` and ``{"name": "<str>"}``
+    as siblings; pair them per list.
     """
     teams: list[dict] = []
 
@@ -235,7 +219,7 @@ def extract_teams(payload: Any) -> list[dict]:
                     if isinstance(el.get("name"), str):
                         name = el["name"]
             if tk:
-                teams.append({"team_key": tk, "name": name, "league": ""})
+                teams.append({"team_key": tk, "name": name})
             for el in node:
                 walk(el)
         elif isinstance(node, dict):
@@ -243,7 +227,6 @@ def extract_teams(payload: Any) -> list[dict]:
                 walk(v)
 
     walk(payload)
-    # Dedupe by team_key, keeping the first (most attribute-rich) hit.
     seen: dict[str, dict] = {}
     for t in teams:
         seen.setdefault(t["team_key"], t)

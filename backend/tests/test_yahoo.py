@@ -72,7 +72,7 @@ ROSTER_PAYLOAD = {
 
 def test_extract_teams_pairs_key_and_name():
     teams = yahoo.extract_teams(TEAMS_PAYLOAD)
-    assert teams == [{"team_key": "428.l.12345.t.6", "name": "Splash Bros", "league": ""}]
+    assert teams == [{"team_key": "428.l.12345.t.6", "name": "Splash Bros"}]
 
 
 def test_extract_player_names_in_order():
@@ -101,3 +101,30 @@ def test_authorization_url_has_required_params():
     assert url.startswith(yahoo.AUTH_URL)
     for frag in ("response_type=code", "scope=fspt-r", "state=xyz", "redirect_uri="):
         assert frag in url
+
+
+def test_signed_state_roundtrips():
+    st = yahoo.make_state("http://localhost:5500/yahoo-callback.html")
+    payload = yahoo.read_state(st)
+    assert payload and payload["r"] == "http://localhost:5500/yahoo-callback.html"
+
+
+def test_tampered_state_is_rejected():
+    st = yahoo.make_state("http://localhost/x")
+    raw, sig = st.rsplit(".", 1)
+    assert yahoo.read_state(f"{raw}.{'0' * len(sig)}") is None       # bad signature
+    assert yahoo.read_state("garbage") is None
+    assert yahoo.read_state("") is None
+
+
+def test_expired_state_is_rejected():
+    # Issued well in the past relative to the verification "now".
+    st = yahoo.make_state("http://localhost/x", now=1000.0)
+    assert yahoo.read_state(st, now=1000.0 + yahoo.STATE_TTL + 1) is None
+
+
+def test_return_url_allowlist():
+    assert yahoo.is_allowed_return("http://localhost:5500/cb.html")
+    assert yahoo.is_allowed_return("https://yusufuzun03.github.io/NBA_stat_analyzer/")
+    assert not yahoo.is_allowed_return("https://evil.example.com/steal")
+    assert not yahoo.is_allowed_return("")

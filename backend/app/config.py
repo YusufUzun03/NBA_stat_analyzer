@@ -30,12 +30,24 @@ def current_season(today: date | None = None) -> str:
 DEFAULT_SEASON = os.getenv("NBA_SEASON") or current_season()
 
 # --- Yahoo Fantasy OAuth (optional; enables auto-importing a Yahoo roster) ---
-# Register an app at https://developer.yahoo.com/apps/ with Fantasy Sports
-# *Read* permission, then set these in the environment (or a .env). The redirect
-# URI must match the one registered on the Yahoo app exactly.
+# Register ONE app at https://developer.yahoo.com/apps/ with Fantasy Sports
+# *Read* permission and deploy this backend once; all users authenticate against
+# it (the proxy is stateless — see app/yahoo.py). Set these in the environment.
+# YAHOO_REDIRECT_URI must match the Yahoo app's registered redirect exactly
+# (the deployed callback, e.g. https://your-api.onrender.com/api/yahoo/callback).
 YAHOO_CLIENT_ID = os.getenv("YAHOO_CLIENT_ID", "")
 YAHOO_CLIENT_SECRET = os.getenv("YAHOO_CLIENT_SECRET", "")
 YAHOO_REDIRECT_URI = os.getenv("YAHOO_REDIRECT_URI", "http://localhost:8000/api/yahoo/callback")
+
+# Allowed frontends the callback may hand tokens back to (prevents open-redirect
+# / token theft). CSV of URL prefixes. localhost/127.0.0.1 are always allowed
+# for local dev; add your hosted site origin(s).
+YAHOO_ALLOWED_RETURNS = [
+    p.strip() for p in os.getenv(
+        "YAHOO_ALLOWED_RETURNS",
+        "http://localhost,http://127.0.0.1,https://yusufuzun03.github.io",
+    ).split(",") if p.strip()
+]
 
 # Default player-pool size for z-score baselines (12 teams x 13 spots).
 DEFAULT_POOL = 156

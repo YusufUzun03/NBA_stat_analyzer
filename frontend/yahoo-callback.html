@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>BoxScore × Yahoo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0a0c14; color: #f4f6fb;
+      display: grid; place-items: center; height: 100vh; margin: 0; }
+    .box { text-align: center; max-width: 420px; padding: 24px; }
+    .ic { font-size: 40px; }
+    p { color: #9aa3b8; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="ic" id="ic">⏳</div>
+    <h2 id="msg">Finishing Yahoo sign-in…</h2>
+    <p id="sub">This window should close automatically.</p>
+  </div>
+  <script>
+    // The backend handed tokens (or an error) back in the URL fragment. Stash
+    // them in localStorage — same origin as the main app, so the opener tab
+    // picks them up — then close. Never logged or sent anywhere else.
+    (function () {
+      var KEY = "hoopiq_yahoo";
+      var h = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+      var err = h.get("yahoo_error");
+      var access = h.get("access_token");
+      function done(icon, msg) {
+        document.getElementById("ic").textContent = icon;
+        document.getElementById("msg").textContent = msg;
+      }
+      try {
+        if (err) {
+          localStorage.setItem(KEY + "_err", err);
+          done("⚠️", err);
+        } else if (access) {
+          var tok = {
+            access_token: access,
+            refresh_token: h.get("refresh_token") || "",
+            expires_at: Math.floor(Date.now() / 1000) + (parseInt(h.get("expires_in"), 10) || 3600) - 60,
+          };
+          localStorage.setItem(KEY, JSON.stringify(tok));
+          localStorage.removeItem(KEY + "_err");
+          done("✅", "Connected to Yahoo!");
+        } else {
+          done("⚠️", "No token received.");
+        }
+      } catch (e) {
+        done("⚠️", "Couldn't save the session.");
+      }
+      // Clear the fragment so tokens don't linger in the address bar, then close.
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+      setTimeout(function () { try { window.close(); } catch (e) {} }, 900);
+    })();
+  </script>
+</body>
+</html>

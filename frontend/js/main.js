@@ -8,6 +8,10 @@ const IS_LOCAL = ["localhost", "127.0.0.1", ""].includes(location.hostname);
 const API = new URLSearchParams(location.search).get("api")
   || (IS_LOCAL ? "http://127.0.0.1:8000" : null);
 const REPO_URL = "https://github.com/YusufUzun03/NBA_stat_analyzer";
+// Deployed BoxScore backend that proxies Yahoo OAuth (stateless — holds no user
+// data). Falls back to the local API for dev. ⚠️ After deploying to Render,
+// replace the onrender.com URL below with your actual service URL.
+const YAHOO_PROXY = (API || "https://boxscore-api.onrender.com").replace(/\/$/, "");
 
 const CATS = [
   { k: "pts", l: "PTS" }, { k: "reb", l: "REB" }, { k: "ast", l: "AST" },
@@ -2844,38 +2848,62 @@ function setBusy(btn, busy, label) {
   if (label != null) btn.textContent = label;
 }
 
-// --- Yahoo (via the local BoxScore backend acting as an OAuth proxy) --------
+// --- Yahoo (via the deployed BoxScore backend acting as a stateless proxy) ---
 // Yahoo needs OAuth + a client secret and serves no CORS, so unlike Sleeper it
-// can't be reached from the browser directly — the FastAPI backend proxies it.
-// That backend is local, so this tab talks to ?api=… (or the local default).
-const yahooBase = () => (API || "http://127.0.0.1:8000").replace(/\/$/, "");
+// can't be reached from the browser. The deployed backend proxies it but stores
+// nothing: the user's tokens live here in localStorage and are sent per request.
+// ?api=… overrides the proxy for local dev.
+const YAHOO_KEY = "hoopiq_yahoo";
+const yahooToken = () => { try { return JSON.parse(localStorage.getItem(YAHOO_KEY) || "null"); } catch { return null; } };
+const setYahooToken = (t) => t ? localStorage.setItem(YAHOO_KEY, JSON.stringify(t)) : localStorage.removeItem(YAHOO_KEY);
 
 function yahooPanelHTML() {
   return `
-    <p class="imp-lead">Pull your Yahoo roster automatically. Yahoo requires a login, so this runs through your <b>local BoxScore backend</b> (it holds the secret Yahoo needs). Make sure the backend is running.</p>
-    <div id="imp-yahoo"><div class="imp-loading">Checking Yahoo connection…</div></div>
+    <p class="imp-lead">Connect your Yahoo account and pick your team — that's it. Yahoo requires a login, so it runs through BoxScore's backend (which never stores your data). BoxScore only ever <b>reads</b> your roster.</p>
+    <div id="imp-yahoo"><div class="imp-loading">Checking Yahoo…</div></div>
     <div id="imp-teams"></div>
     <div id="imp-result"></div>`;
+}
+
+// Call a proxy endpoint with the user's access token, auto-refreshing once on 401.
+async function yahooApi(path) {
+  let tok = yahooToken();
+  if (!tok?.access_token) throw new Error("Not connected to Yahoo.");
+  if (tok.expires_at && Math.floor(Date.now() / 1000) >= tok.expires_at) tok = await yahooRefresh(tok);
+  let r = await fetch(`${YAHOO_PROXY}${path}`, { headers: { Authorization: `Bearer ${tok.access_token}` } });
+  if (r.status === 401) { tok = await yahooRefresh(tok); r = await fetch(`${YAHOO_PROXY}${path}`, { headers: { Authorization: `Bearer ${tok.access_token}` } }); }
+  if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || "Yahoo request failed."); }
+  return r.json();
+}
+async function yahooRefresh(tok) {
+  if (!tok?.refresh_token) { setYahooToken(null); throw new Error("Yahoo session expired — reconnect."); }
+  const r = await fetch(`${YAHOO_PROXY}/api/yahoo/refresh`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: tok.refresh_token }),
+  });
+  if (!r.ok) { setYahooToken(null); throw new Error("Yahoo session expired — reconnect."); }
+  const data = await r.json();
+  const next = { access_token: data.access_token, refresh_token: data.refresh_token || tok.refresh_token,
+    expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600) - 60 };
+  setYahooToken(next);
+  return next;
 }
 
 async function wireYahooPanel(body) {
   const statusEl = body.querySelector("#imp-yahoo");
   const teamsEl = body.querySelector("#imp-teams");
   const resultEl = body.querySelector("#imp-result");
-  const base = yahooBase();
 
-  let status;
+  let configured = false;
   try {
-    const r = await fetch(`${base}/api/yahoo/status`);
-    if (!r.ok) throw new Error();
-    status = await r.json();
+    const r = await fetch(`${YAHOO_PROXY}/api/yahoo/status`);
+    configured = r.ok && (await r.json()).configured;
   } catch {
-    statusEl.innerHTML = `<div class="imp-miss">Couldn't reach the BoxScore backend at <code>${esc(base)}</code>.
-      Start it (<code>uvicorn app.main:app</code>) and open the site with <code>?api=${esc(base)}</code>, then reopen this tab.</div>`;
+    statusEl.innerHTML = `<div class="imp-miss">Couldn't reach the BoxScore backend at <code>${esc(YAHOO_PROXY)}</code>. It may be waking up — try again in a few seconds.</div>`;
     return;
   }
-  if (!status.configured) {
-    statusEl.innerHTML = `<div class="imp-miss">Yahoo isn't set up on the backend yet. Add <code>YAHOO_CLIENT_ID</code> / <code>YAHOO_CLIENT_SECRET</code> (see <b>YAHOO_SETUP.md</b>), restart the backend, then reopen this tab.</div>`;
+  if (!configured) {
+    statusEl.innerHTML = `<div class="imp-miss">Yahoo isn't configured on the server yet. (Owner: set <code>YAHOO_CLIENT_ID</code>/<code>YAHOO_CLIENT_SECRET</code> — see <b>YAHOO_SETUP.md</b>.) Use the Paste or Sleeper tabs meanwhile.</div>`;
     return;
   }
 
@@ -2883,9 +2911,7 @@ async function wireYahooPanel(body) {
     teamsEl.innerHTML = `<div class="imp-loading">Loading your Yahoo teams…</div>`;
     resultEl.innerHTML = "";
     try {
-      const r = await fetch(`${base}/api/yahoo/teams`);
-      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.detail || "Couldn't load your teams."); }
-      const { teams } = await r.json();
+      const { teams } = await yahooApi("/api/yahoo/teams");
       if (!teams?.length) { teamsEl.innerHTML = `<div class="imp-miss">No NBA teams found on your Yahoo account this season.</div>`; return; }
       teamsEl.innerHTML = `
         <div class="imp-lead imp-lg-name">Pick your team:</div>
@@ -2895,46 +2921,49 @@ async function wireYahooPanel(body) {
         teamsEl.querySelectorAll(".imp-team").forEach((x) => x.classList.toggle("active", x === b));
         renderImportResult(resultEl, resolveRoster(teams[+b.dataset.i].players));
       }));
-    } catch (err) { teamsEl.innerHTML = `<div class="imp-miss">${esc(err.message)}</div>`; }
+    } catch (err) {
+      teamsEl.innerHTML = `<div class="imp-miss">${esc(err.message)}</div>`;
+      if (/reconnect|connected/i.test(err.message)) renderDisconnected();
+    }
   };
 
   const renderConnected = () => {
     statusEl.innerHTML = `
       <div class="imp-row">
-        <button class="btn btn-primary" id="y-load" type="button">Load my teams</button>
+        <button class="btn btn-primary" id="y-load" type="button">Reload my teams</button>
         <button class="btn btn-ghost" id="y-disc" type="button">Disconnect</button>
       </div>`;
     statusEl.querySelector("#y-load").addEventListener("click", loadTeams);
-    statusEl.querySelector("#y-disc").addEventListener("click", async () => {
-      await fetch(`${base}/api/yahoo/disconnect`, { method: "POST" }).catch(() => {});
-      teamsEl.innerHTML = ""; resultEl.innerHTML = ""; renderDisconnected();
+    statusEl.querySelector("#y-disc").addEventListener("click", () => {
+      setYahooToken(null); teamsEl.innerHTML = ""; resultEl.innerHTML = ""; renderDisconnected();
     });
-    loadTeams();   // connected already — jump straight to teams
+    loadTeams();
   };
 
   const renderDisconnected = () => {
     statusEl.innerHTML = `<button class="btn btn-primary" id="y-conn" type="button">Connect Yahoo →</button>`;
     statusEl.querySelector("#y-conn").addEventListener("click", () => {
-      const popup = window.open(`${base}/api/yahoo/login`, "yahoo-auth", "width=520,height=680");
-      statusEl.querySelector("#y-conn").textContent = "Waiting for Yahoo login…";
-      setBusy(statusEl.querySelector("#y-conn"), true);
-      // Poll connection status until the OAuth round-trip completes.
+      localStorage.removeItem(YAHOO_KEY + "_err");
+      const ret = new URL("yahoo-callback.html", location.href).href;
+      const popup = window.open(`${YAHOO_PROXY}/api/yahoo/login?return=${encodeURIComponent(ret)}`, "yahoo-auth", "width=520,height=680");
+      const btn = statusEl.querySelector("#y-conn");
+      btn.textContent = "Waiting for Yahoo login…"; setBusy(btn, true);
+      // The popup writes the token to localStorage (same origin); poll for it.
       let tries = 0;
-      const timer = setInterval(async () => {
+      const timer = setInterval(() => {
         tries++;
-        let connected = false;
-        try { connected = (await (await fetch(`${base}/api/yahoo/status`)).json()).connected; } catch {}
-        if (connected) { clearInterval(timer); try { popup?.close(); } catch {} renderConnected(); }
-        else if (tries > 120 || (popup && popup.closed && tries > 2)) {
-          clearInterval(timer);
-          renderDisconnected();
-          if (tries > 120) showToast("Yahoo login timed out — try again.", true);
+        const err = localStorage.getItem(YAHOO_KEY + "_err");
+        if (yahooToken()?.access_token) { clearInterval(timer); try { popup?.close(); } catch {} renderConnected(); }
+        else if (err) { clearInterval(timer); localStorage.removeItem(YAHOO_KEY + "_err"); renderDisconnected(); showToast(err, true); }
+        else if (tries > 200 || (popup && popup.closed && tries > 2)) {
+          clearInterval(timer); renderDisconnected();
+          if (tries > 200) showToast("Yahoo login timed out — try again.", true);
         }
-      }, 1500);
+      }, 1000);
     });
   };
 
-  if (status.connected) renderConnected(); else renderDisconnected();
+  if (yahooToken()?.access_token) renderConnected(); else renderDisconnected();
 }
 
 function renderImportResult(el, { matched, unmatched }) {

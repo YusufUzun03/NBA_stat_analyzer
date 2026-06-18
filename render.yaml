@@ -1,0 +1,23 @@
+# Render Blueprint for the BoxScore backend (the Yahoo OAuth proxy + dev API).
+# Deploy: push this repo, then on render.com → New → Blueprint → pick this repo.
+# Render will prompt for the env var values marked `sync: false` (your secrets).
+# After it's live, set the Yahoo app's redirect URI to:
+#   https://<your-service>.onrender.com/api/yahoo/callback
+# and update YAHOO_PROXY in frontend/js/main.js to that base URL.
+services:
+  - type: web
+    name: boxscore-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: YAHOO_CLIENT_ID
+        sync: false
+      - key: YAHOO_CLIENT_SECRET
+        sync: false
+      - key: YAHOO_REDIRECT_URI
+        sync: false   # https://<service>.onrender.com/api/yahoo/callback
+      - key: YAHOO_ALLOWED_RETURNS
+        sync: false   # e.g. https://yusufuzun03.github.io,http://localhost
